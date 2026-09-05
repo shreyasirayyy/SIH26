@@ -17,12 +17,15 @@ export default function ConnectCasePage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
+
     const result = await caseService.verifyDocket(docket);
     setLoading(false);
+
     if (!result.ok) {
-      setError(result.message ?? "Something went wrong. Please try again.");
+      setError(result.message ?? "Unable to verify this docket reference.");
       return;
     }
+
     router.push(`/case-found?docket=${encodeURIComponent(docket)}`);
   }
 
@@ -31,7 +34,7 @@ export default function ConnectCasePage() {
       <ProgressDots step={1} total={5} />
       <h1 className="mt-6 text-xl font-semibold">Connect your registered case</h1>
       <p className="mt-2 text-sm text-text-secondary">
-        Enter the NHAA docket ID linked to your registered grievance.
+        Enter your NHAA docket or reference number to verify your case.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
@@ -48,6 +51,7 @@ export default function ConnectCasePage() {
             required
           />
         </div>
+
         {error && (
           <p role="alert" className="text-sm text-warm-peach">
             {error}
@@ -60,7 +64,7 @@ export default function ConnectCasePage() {
         </p>
 
         <Button type="submit" size="lg" className="w-full" disabled={loading}>
-          {loading ? "Checking..." : "Find my case"}
+          {loading ? "Verifying..." : "Verify my case"}
         </Button>
       </form>
 

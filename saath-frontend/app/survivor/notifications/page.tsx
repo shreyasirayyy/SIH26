@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Bell, MessageSquare, Send } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { notificationService } from "@/services/notifications";
 import { useAppStore } from "@/store/useAppStore";
@@ -12,6 +12,11 @@ export default function NotificationsPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const hindi = useAppStore((store) => store.language === "Hindi");
+  const [, setNotifications] = useState<Array<{ id?: string; read?: boolean }>>([]);
+
+  useEffect(() => {
+    notificationService.getNotifications().then(setNotifications).catch(() => setNotifications([]));
+  }, []);
 
   async function sendReminder() {
     if (!phone.trim() || sending) return;

@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { Role } from "@/types";
+import { CaseRecord, Role } from "@/types";
 
 export type MonitoringState = "active" | "paused" | "stopped";
 
@@ -11,12 +11,20 @@ interface AppState {
   victimToken: string | null;
   docket: string | null;
   survivorName: string | null;
+  accessToken: string | null;
+  currentCase: CaseRecord | null;
   consentGiven: boolean;
   voiceConsent: boolean;
   monitoring: MonitoringState;
   language: string;
 
-  setSurvivorSession: (opts: { victimToken: string; docket: string; survivorName: string }) => void;
+  setSurvivorSession: (opts: {
+    victimToken: string;
+    docket: string;
+    survivorName: string;
+    accessToken?: string;
+    caseRecord?: CaseRecord | null;
+  }) => void;
   setStaffRole: (role: Role) => void;
   setConsent: (consent: boolean, voiceConsent: boolean) => void;
   setMonitoring: (state: MonitoringState) => void;
@@ -31,13 +39,22 @@ export const useAppStore = create<AppState>()(
       victimToken: null,
       docket: null,
       survivorName: null,
+      accessToken: null,
+      currentCase: null,
       consentGiven: false,
       voiceConsent: false,
       monitoring: "active",
       language: "English",
 
-      setSurvivorSession: ({ victimToken, docket, survivorName }) =>
-        set({ role: "survivor", victimToken, docket, survivorName }),
+      setSurvivorSession: ({ victimToken, docket, survivorName, accessToken, caseRecord }) =>
+        set({
+          role: "survivor",
+          victimToken,
+          docket,
+          survivorName,
+          accessToken: accessToken ?? get().accessToken,
+          currentCase: caseRecord ?? get().currentCase,
+        }),
       setStaffRole: (role) => set({ role }),
       setConsent: (consentGiven, voiceConsent) => set({ consentGiven, voiceConsent }),
       setMonitoring: (monitoring) => set({ monitoring }),
@@ -48,6 +65,8 @@ export const useAppStore = create<AppState>()(
           victimToken: null,
           docket: null,
           survivorName: null,
+          accessToken: null,
+          currentCase: null,
           consentGiven: false,
           voiceConsent: false,
           monitoring: "active",
@@ -56,3 +75,7 @@ export const useAppStore = create<AppState>()(
     { name: "saath-demo-session" }
   )
 );
+
+function get() {
+  return useAppStore.getState();
+}

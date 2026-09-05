@@ -49,8 +49,16 @@ export interface AiOutput {
   confidence: "Low" | "Moderate" | "High";
   escalationEstimate: "Stable" | "Watch" | "Elevated" | "Critical";
   priorityLevel: "P1" | "P2" | "P3" | "P4";
+  // When true, there is not yet enough check-in data or model confidence to make a clear call.
+  insufficientEvidence?: boolean;
   contributingSignals: string[];
   recommendedIntervention: string;
+}
+
+export interface InterventionFeedback {
+  activity: string;
+  helpful: boolean;
+  timestamp?: string;
 }
 
 export interface TimelineEvent {

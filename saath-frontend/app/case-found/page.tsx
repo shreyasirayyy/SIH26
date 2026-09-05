@@ -19,10 +19,10 @@ function CaseFoundInner() {
   const setSurvivorSession = useAppStore((s) => s.setSurvivorSession);
 
   useEffect(() => {
-    caseService.connectCase(docket, params.get("mobile") ?? "").then(setCaseRecord).catch((reason: unknown) => {
+    caseService.connectCase(docket).then(setCaseRecord).catch((reason: unknown) => {
       setError(reason instanceof Error ? reason.message : "Unable to load your case.");
     });
-  }, [docket, params]);
+  }, [docket]);
 
   function handleConfirm() {
     if (!caseRecord) return;
