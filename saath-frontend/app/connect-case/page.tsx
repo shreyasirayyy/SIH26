@@ -24,7 +24,6 @@ export default function ConnectCasePage() {
       setError(result.message ?? "Something went wrong. Please try again.");
       return;
     }
-    await caseService.requestOtp();
     router.push(`/verify-otp?docket=${encodeURIComponent(docket)}&mobile=${encodeURIComponent(mobile)}`);
   }
 

@@ -15,11 +15,14 @@ function CaseFoundInner() {
   const params = useSearchParams();
   const docket = params.get("docket") ?? "";
   const [caseRecord, setCaseRecord] = useState<CaseRecord | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const setSurvivorSession = useAppStore((s) => s.setSurvivorSession);
 
   useEffect(() => {
-    caseService.getCaseByDocket(docket).then(setCaseRecord);
-  }, [docket]);
+    caseService.connectCase(docket, params.get("mobile") ?? "").then(setCaseRecord).catch((reason: unknown) => {
+      setError(reason instanceof Error ? reason.message : "Unable to load your case.");
+    });
+  }, [docket, params]);
 
   function handleConfirm() {
     if (!caseRecord) return;
@@ -31,6 +34,9 @@ function CaseFoundInner() {
     router.push("/consent");
   }
 
+  if (error) {
+    return <div className="flex-1 flex items-center justify-center px-6 text-center text-warm-peach">{error}</div>;
+  }
   if (!caseRecord) {
     return <div className="flex-1 flex items-center justify-center text-text-secondary">Loading case...</div>;
   }

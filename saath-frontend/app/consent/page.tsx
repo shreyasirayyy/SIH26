@@ -6,16 +6,28 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { ProgressDots } from "@/components/ui/ProgressDots";
 import { useAppStore } from "@/store/useAppStore";
+import { apiRequest } from "@/lib/api";
 
 export default function ConsentPage() {
   const router = useRouter();
   const setConsent = useAppStore((s) => s.setConsent);
   const [monitoringConsent, setMonitoringConsent] = useState(false);
   const [voiceConsent, setVoiceConsent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  function handleContinue() {
-    setConsent(monitoringConsent, voiceConsent);
-    router.push("/survivor");
+  async function handleContinue() {
+    setError(null);
+    setLoading(true);
+    try {
+      await apiRequest("/api/v1/consents", { method: "POST", body: JSON.stringify({ monitoring: monitoringConsent, voice: voiceConsent, text: monitoringConsent, behavioural: false, version: "1.0" }) });
+      setConsent(monitoringConsent, voiceConsent);
+      router.push("/survivor");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to save consent.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -64,8 +76,10 @@ export default function ConsentPage() {
 
       <div className="flex-1" />
 
-      <Button size="lg" className="w-full mt-6" disabled={!monitoringConsent} onClick={handleContinue}>
-        Continue to SAATH
+      {error && <p role="alert" className="mt-4 text-sm text-warm-peach">{error}</p>}
+
+      <Button size="lg" className="w-full mt-6" disabled={!monitoringConsent || loading} onClick={handleContinue}>
+        {loading ? "Saving..." : "Continue to SAATH"}
       </Button>
       <p className="mt-2 text-center text-xs text-text-secondary">
         You can pause or stop monitoring at any time from Settings.

@@ -53,9 +53,6 @@ function VerifyOtpInner() {
             {error}
           </p>
         )}
-        <p className="text-xs text-text-secondary">
-          Demo code: <span className="font-mono">482913</span> (or any 6 digits)
-        </p>
         <Button type="submit" size="lg" className="w-full" disabled={loading}>
           {loading ? "Checking..." : "Verify & Continue"}
         </Button>
