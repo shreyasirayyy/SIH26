@@ -1,0 +1,14 @@
+{
+  "name": "SAATH — Support After A Trauma, Healing",
+  "short_name": "SAATH",
+  "description": "Connect your registered case with continuous, voluntary mental-health support.",
+  "start_url": "/welcome",
+  "display": "standalone",
+  "background_color": "#FFF9F0",
+  "theme_color": "#0F766E",
+  "orientation": "portrait-primary",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

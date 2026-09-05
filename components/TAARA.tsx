@@ -1,0 +1,6 @@
+import Link from "next/link";
+import { ArrowUpRight, Sparkles } from "lucide-react";
+
+export function TAARA({ compact = false }: { compact?: boolean }) {
+  return <div className={`relative overflow-hidden rounded-[26px] ${compact ? "p-5" : "p-7"} bg-[#0f766e] text-white shadow-[0_20px_45px_rgba(15,118,110,.2)]`}><div className="absolute -right-8 -top-10 h-36 w-36 rounded-full bg-[#69c4b0]/20 blur-2xl" /><div className="absolute bottom-0 left-1/2 h-24 w-40 -translate-x-1/2 rounded-full bg-[#f9ca64]/10 blur-2xl" /><div className="relative"><div className="flex items-center justify-between"><div className="flex items-center gap-2"><span className="star-breathe inline-flex h-9 w-9 items-center justify-center rounded-full bg-white/12 text-xl text-[#f9ca64] ring-1 ring-white/20">✦</span><div><p className="text-[10px] font-bold uppercase tracking-[.2em] text-[#bde5d1]">TAARA</p><p className="text-xs text-white/65">your gentle guide</p></div></div><Sparkles size={16} className="text-[#a9ded0]" /></div><p className={`${compact ? "mt-5 text-lg" : "mt-7 text-[22px]"} max-w-[260px] font-display leading-tight`}>One step at a time. You don&apos;t have to figure everything out right now.</p><Link href="/survivor/taara" className="mt-5 inline-flex items-center gap-2 text-xs font-bold text-[#e0f4e6]">Open a quiet space <ArrowUpRight size={15} /></Link></div></div>;
+}
