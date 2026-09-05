@@ -10,7 +10,6 @@ import { caseService } from "@/services/case";
 export default function ConnectCasePage() {
   const router = useRouter();
   const [docket, setDocket] = useState("NHAA-RJ-2026-004821");
-  const [mobile, setMobile] = useState("9876543210");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -18,13 +17,13 @@ export default function ConnectCasePage() {
     e.preventDefault();
     setError(null);
     setLoading(true);
-    const result = await caseService.verifyDocket(docket, mobile);
+    const result = await caseService.verifyDocket(docket);
     setLoading(false);
     if (!result.ok) {
       setError(result.message ?? "Something went wrong. Please try again.");
       return;
     }
-    router.push(`/verify-otp?docket=${encodeURIComponent(docket)}&mobile=${encodeURIComponent(mobile)}`);
+    router.push(`/case-found?docket=${encodeURIComponent(docket)}`);
   }
 
   return (
@@ -32,7 +31,7 @@ export default function ConnectCasePage() {
       <ProgressDots step={1} total={5} />
       <h1 className="mt-6 text-xl font-semibold">Connect your registered case</h1>
       <p className="mt-2 text-sm text-text-secondary">
-        Use the mobile number already associated with your registered grievance.
+        Enter the NHAA docket ID linked to your registered grievance.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
@@ -49,26 +48,6 @@ export default function ConnectCasePage() {
             required
           />
         </div>
-        <div>
-          <label className="text-sm font-medium text-text-secondary" htmlFor="mobile">
-            Registered Mobile Number
-          </label>
-          <div className="mt-1.5 flex items-center gap-2">
-            <span className="rounded-xl border border-border-color bg-white px-3 py-3 text-text-secondary">
-              +91
-            </span>
-            <Input
-              id="mobile"
-              value={mobile}
-              onChange={(e) => setMobile(e.target.value)}
-              inputMode="numeric"
-              maxLength={10}
-              placeholder="9876543210"
-              required
-            />
-          </div>
-        </div>
-
         {error && (
           <p role="alert" className="text-sm text-warm-peach">
             {error}
@@ -81,7 +60,7 @@ export default function ConnectCasePage() {
         </p>
 
         <Button type="submit" size="lg" className="w-full" disabled={loading}>
-          {loading ? "Verifying..." : "Verify & Continue"}
+          {loading ? "Checking..." : "Find my case"}
         </Button>
       </form>
 

@@ -27,7 +27,7 @@ function VerifyOtpInner() {
       setError("That code doesn't look right. Please try again.");
       return;
     }
-    router.push(`/case-found?docket=${encodeURIComponent(docket)}`);
+    router.push(`/case-found?docket=${encodeURIComponent(docket)}&mobile=${encodeURIComponent(mobile)}`);
   }
 
   return (
