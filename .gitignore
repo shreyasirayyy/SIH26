@@ -1,9 +1,32 @@
-node_modules
-.next
-out
-build
-.env
-.env.local
-*.log
-.DS_Store
+# Dependencies and package-manager caches
+**/node_modules/
+.pnpm-store/
+.npm/
+
+# Framework/build output
+**/.next/
+**/out/
+**/build/
+**/dist/
+coverage/
+**/coverage/
 *.tsbuildinfo
+
+# Local configuration and secrets
+**/.env
+**/.env.*
+!**/.env.example
+
+# Runtime/local data
+*.log
+**/logs/
+**/uploads/
+**/.DS_Store
+.DS_Store
+
+# Local AI-agent/editor artifacts
+**/.agents/
+**/.claude/
+**/AGENTS.md
+**/CLAUDE.md
+**/skills-lock.json
