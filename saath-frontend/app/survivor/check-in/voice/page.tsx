@@ -22,7 +22,30 @@ export default function VoiceCheckInPage() {
       const current = new MediaRecorder(stream);
       recorder.current = current;
       current.ondataavailable = (event) => { if (event.data.size) chunks.current.push(event.data); };
-      current.onstop = async () => { stream.getTracks().forEach((track) => track.stop()); setState("Processing"); try { await aiService.submitVoiceCheckIn(new Blob(chunks.current, { type: current.mimeType }), hindi ? "hi" : "en"); setState("Complete"); } catch { setState("Unavailable"); } };
+      current.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop());
+        setState("Processing");
+        try {
+          await aiService.submitVoiceCheckIn(new Blob(chunks.current, { type: current.mimeType }), hindi ? "hi" : "en");
+          // check for an immediate escalation signal (backend processing may be delayed in real deployments)
+          try {
+            const victimToken = useAppStore.getState().victimToken;
+            if (victimToken) {
+              const latest = await aiService.getLatestEstimate(victimToken);
+              if (latest && latest.priorityLevel === "P1") {
+                // surface friendly interstitial to the survivor
+                setState("Complete");
+                // TODO: present a full-screen interstitial similar to the text check-in flow
+              }
+            }
+          } catch (e) {
+            // ignore
+          }
+          setState("Complete");
+        } catch {
+          setState("Unavailable");
+        }
+      };
       current.start(); setState("Listening");
     } catch { setState("Unavailable"); }
   }

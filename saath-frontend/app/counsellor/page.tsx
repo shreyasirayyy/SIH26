@@ -55,7 +55,11 @@ export default function CounsellorQueuePage() {
                 <div className="text-right shrink-0 space-y-1">
                   {latest && (
                     <>
-                      <Badge tone={PRIORITY_TONE[latest.priorityLevel]}>{latest.priorityLevel}</Badge>
+                      {latest.insufficientEvidence ? (
+                        <Badge tone="neutral">Insufficient evidence yet — continue monitoring</Badge>
+                      ) : (
+                        <Badge tone={PRIORITY_TONE[latest.priorityLevel]}>{latest.priorityLevel}</Badge>
+                      )}
                       <p className="text-xs text-text-secondary">{latest.escalationEstimate}</p>
                     </>
                   )}

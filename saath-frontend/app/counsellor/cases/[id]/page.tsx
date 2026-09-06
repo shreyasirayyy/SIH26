@@ -49,7 +49,11 @@ export default function CounsellorCaseDetailPage() {
           </ul>
           <div className="mt-3 flex items-center gap-2 text-sm">
             <span className="text-text-secondary">Confidence:</span>
-            <Badge tone="teal">{latest.confidence}</Badge>
+            {latest.insufficientEvidence || checkIns.length < 2 ? (
+              <Badge tone="neutral">Insufficient evidence yet — continue monitoring</Badge>
+            ) : (
+              <Badge tone="teal">{latest.confidence}</Badge>
+            )}
           </div>
           <p className="mt-2 text-sm font-medium">{latest.recommendedIntervention}</p>
         </Card>

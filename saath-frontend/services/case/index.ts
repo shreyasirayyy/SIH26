@@ -1,24 +1,59 @@
 import { CaseRecord, TimelineEvent } from "@/types";
 import { apiRequest, setSession } from "@/lib/api";
+import { useAppStore } from "@/store/useAppStore";
+
+function normalizeCaseResult(result: { case?: CaseRecord; accessToken?: string } | CaseRecord): CaseRecord {
+  if (typeof result === "object" && result !== null && "case" in result && result.case) {
+    return result.case;
+  }
+  if (typeof result === "object" && result !== null && "docket" in result && "victimToken" in result) {
+    return result as CaseRecord;
+  }
+  throw new Error("Case response was not in the expected format.");
+}
+
+export async function authenticateWithDocket(docket: string): Promise<{ ok: boolean; caseRecord?: CaseRecord; message?: string }> {
+  try {
+    const result = await apiRequest<{ case?: CaseRecord; accessToken?: string } | CaseRecord>("/api/v1/cases/connect", {
+      method: "POST",
+      body: JSON.stringify({ docket }),
+    });
+
+    const caseRecord = normalizeCaseResult(result);
+    const accessToken = "accessToken" in result ? result.accessToken : undefined;
+
+    if (accessToken) {
+      setSession(accessToken);
+      useAppStore.getState().setSurvivorSession({
+        victimToken: caseRecord.victimToken,
+        docket: caseRecord.docket,
+        survivorName: caseRecord.survivorName,
+        accessToken,
+        caseRecord,
+      });
+    }
+
+    return { ok: true, caseRecord };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error instanceof Error ? error.message : "Unable to verify this docket number.",
+    };
+  }
+}
 
 export const caseService = {
   async verifyDocket(docket: string): Promise<{ ok: boolean; message?: string }> {
-    try {
-      const result = await apiRequest<{ case: CaseRecord; accessToken: string }>("/api/v1/cases/connect", {
-        method: "POST",
-        body: JSON.stringify({ docket }),
-      });
-      setSession(result.accessToken);
-      return { ok: true };
-    } catch (error) {
-      return { ok: false, message: error instanceof Error ? error.message : "Unable to request a verification code." };
-    }
+    const result = await authenticateWithDocket(docket.trim());
+    return { ok: result.ok, message: result.message };
   },
 
   async connectCase(docket: string): Promise<CaseRecord> {
-    const result = await apiRequest<{ case: CaseRecord; accessToken: string }>("/api/v1/cases/connect", { method: "POST", body: JSON.stringify({ docket }) });
-    setSession(result.accessToken);
-    return result.case;
+    const result = await authenticateWithDocket(docket.trim());
+    if (!result.ok || !result.caseRecord) {
+      throw new Error(result.message ?? "Unable to verify this docket number.");
+    }
+    return result.caseRecord;
   },
 
   async getCaseByDocket(docket: string): Promise<CaseRecord | null> {
