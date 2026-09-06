@@ -5,6 +5,7 @@ import { AiOutput, CaseRecord, CheckIn, TimelineEvent } from "@/types";
 
 export const DEMO_CASES: CaseRecord[] = [
   {
+    id: "synthetic-case-001",
     docket: "NHAA-RJ-2026-004821",
     victimToken: "VIC_8291",
     survivorName: "Sunita",
@@ -32,6 +33,7 @@ export const DEMO_CASES: CaseRecord[] = [
     preferredLanguage: "Hindi",
   },
   {
+    id: "synthetic-case-002",
     docket: "NHAA-MH-2026-011932",
     victimToken: "VIC_4410",
     survivorName: "Priya",
@@ -59,6 +61,7 @@ export const DEMO_CASES: CaseRecord[] = [
     preferredLanguage: "Marathi",
   },
   {
+    id: "synthetic-case-003",
     docket: "NHAA-UP-2026-007765",
     victimToken: "VIC_1173",
     survivorName: "Anjali",
@@ -86,6 +89,7 @@ export const DEMO_CASES: CaseRecord[] = [
     preferredLanguage: "Hindi",
   },
   {
+    id: "synthetic-case-004",
     docket: "NHAA-KA-2026-002210",
     victimToken: "VIC_9052",
     survivorName: "Deepa",
@@ -99,17 +103,17 @@ export const DEMO_CASES: CaseRecord[] = [
     firStatus: "Filed",
     investigationStatus: "Completed",
     chargesheetStatus: "Filed",
-    nextHearingDate: "2026-10-02",
-    hearingCount: 6,
-    adjournmentCount: 1,
+    nextHearingDate: "2026-09-25",
+    hearingCount: 2,
+    adjournmentCount: 0,
     compensationStatus: "Disbursed",
     compensationAmountApproved: 150000,
     compensationAmountReceived: 150000,
     protectionStatus: "Granted",
     relocationStatus: "Not requested",
     legalAidStatus: "Assigned",
-    rehabilitationStatus: "Ongoing",
-    counsellorAssigned: "Mr. Arjun",
+    rehabilitationStatus: "Completed",
+    counsellorAssigned: "Dr. Neha",
     preferredLanguage: "Kannada",
   },
 ];

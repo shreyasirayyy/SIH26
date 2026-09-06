@@ -13,7 +13,7 @@ export default function InterventionFeedback({ activity }: { activity: string })
     if (loading) return;
     setLoading(true);
     try {
-      await aiService.submitInterventionFeedback(activity, helpful);
+      await aiService.submitInterventionFeedback(activity, { completed: helpful, rating: helpful ? 5 : 1 });
       setSent(helpful);
     } catch (e) {
       console.error(e);

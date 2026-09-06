@@ -2,7 +2,8 @@ import express from 'express';
 import cors from 'cors'; import helmet from 'helmet'; import rateLimit from 'express-rate-limit'; import multer from 'multer';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod'; import { randomUUID } from 'node:crypto';
-import { corsOrigins, env } from './config/env.js'; import { store, id } from './db/store.js'; import { AppError, asyncRoute, fail, ok, requestId } from './utils/http.js'; import { normalizePhone, notificationProvider } from './services/notifications.js'; import { requireAuth, requireRoles, signUser, type AuthedRequest } from './middleware/auth.js'; import { analyzeText, analyzeVoice } from './services/ml.js'; import { respondToTaara } from './services/taara/index.js'; import { findEligibleCase } from './services/case/case.service.js';
+import { corsOrigins, env } from './config/env.js'; import { store, id } from './db/store.js'; import { AppError, asyncRoute, fail, ok, requestId } from './utils/http.js'; import { normalizePhone, notificationProvider, getEscalatedMessage } from './services/notifications.js'; import { requireAuth, requireRoles, signUser, type AuthedRequest } from './middleware/auth.js'; import { analyzeText, analyzeVoice } from './services/ml.js'; import { respondToTaara } from './services/taara/index.js'; import { findEligibleCase, syncCaseStage } from './services/case/case.service.js';
+
 const app=express(); app.use(helmet()); app.use(cors({origin:(origin,cb)=>!origin||corsOrigins.includes(origin)?cb(null,true):cb(new Error('CORS denied'))})); app.use(express.json({limit:'1mb'})); app.use(requestId); app.use(rateLimit({windowMs:60_000,max:120,standardHeaders:true,legacyHeaders:false}));
 const body=(schema:z.ZodTypeAny)=>(req:AuthedRequest,_res:express.Response,next:express.NextFunction)=>{const parsed=schema.safeParse(req.body); if(!parsed.success) return next(new AppError(400,'VALIDATION_ERROR','Request validation failed',parsed.error.flatten())); req.body=parsed.data; next();};
 const record=(key:string,value:any)=>{const arr=store.records.get(key)||[]; arr.push(value); store.records.set(key,arr); return value;};
@@ -40,9 +41,6 @@ const recordAlert = (payload: { victimToken?: string; caseReference?: string; re
     existing.updatedAt = now;
     existing.lastTriggeredAt = now;
     existing.confidence = payload.confidence ?? existing.confidence;
-    // Equivalent, active alerts for the same survivor and reason are collapsed
-    // for 15 minutes.  The event remains visible through occurrenceCount and
-    // lastSeenAt, without creating an unlimited active-alert queue.
     existing.occurrenceCount = (existing.occurrenceCount ?? existing.count ?? 1) + 1;
     existing.count = existing.occurrenceCount;
     existing.lastSeenAt = now;
@@ -103,6 +101,8 @@ app.post('/api/v1/auth/logout', asyncRoute(async (req, res) => {
 }));
 app.get('/api/v1/cases/:id',requireAuth,asyncRoute(async(req:AuthedRequest,res)=>{const c=store.cases.find(x=>x.id===req.params.id||x.victimToken===req.params.id||x.docket===req.params.id); if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); if(req.user!.role==='SURVIVOR'&&req.user!.victimToken!==c.victimToken&&!(store.records.get(`user:${req.user!.id}:cases`)||[]).includes(c.id)) throw new AppError(403,'FORBIDDEN','You can only access your own case.'); return ok(res,safeCase(c));}));
 app.get('/api/v1/cases/:id/timeline',requireAuth,asyncRoute(async(req,res)=>ok(res,store.timelines.filter(x=>x.caseId===req.params.id))));
+app.post('/api/v1/cases/:id/stage',requireAuth,requireRoles('COUNSELLOR','DISTRICT_ADMIN','STATE_ADMIN','NATIONAL_ADMIN'),body(z.object({stage:z.string().min(1)})),asyncRoute(async(req:AuthedRequest,res)=>{const caseId=String(req.params.id); const newStage=String(req.body.stage); const updated=await syncCaseStage(caseId,newStage); return ok(res,updated,200);}));
+
 const consentSchema=z.union([
   z.object({consent_type:z.enum(['wellbeing_monitoring','text_analysis','voice_analysis','behavioural_signals']),granted:z.boolean(),version:z.string().min(1).max(80).default('1.0')}),
   z.object({monitoring:z.boolean(),voice:z.boolean().default(false),text:z.boolean().default(false),behavioural:z.boolean().default(false),version:z.string().min(1).max(80).default('1.0')})
@@ -138,6 +138,15 @@ app.get('/api/v1/alerts',requireAuth,asyncRoute(async(req:AuthedRequest,res)=>{
   const filtered = req.user!.role === 'SURVIVOR' ? allAlerts.filter((a:any) => a.victimToken === req.user!.victimToken) : allAlerts;
   return ok(res, filtered);
 }));
+
+app.post('/api/v1/notifications/sms/webhook', body(z.object({ From: z.string().min(8), Body: z.string().min(1) })), asyncRoute(async (req, res) => {
+  const phone = normalizePhone(req.body.From);
+  const matchedCase = store.cases.find(c => c.registeredPhone === phone);
+  const saved = record('checkins:sms', { id: id(), phone, message: req.body.Body.trim(), caseId: matchedCase?.id ?? null, matched: !!matchedCase, source: 'sms_reply', analyticalState: 'insufficient_evidence', createdAt: new Date().toISOString() });
+  if (matchedCase) record(`checkins:${matchedCase.victimToken}`, { id: id(), type: 'sms_reply', victimToken: matchedCase.victimToken, message: req.body.Body.trim(), createdAt: new Date().toISOString(), analyticalState: 'insufficient_evidence' });
+  return ok(res, { status: 'captured', matched: saved.matched }, 202);
+}));
+
 app.post('/api/v1/alerts/:id/acknowledge',requireAuth,asyncRoute(async(req:AuthedRequest,res)=>{
   const alerts = store.records.get('alerts:all') || [];
   const alert = alerts.find((a:any) => a.id === req.params.id);
@@ -164,7 +173,17 @@ app.post('/api/v1/alerts/:id/resolve',requireAuth,asyncRoute(async(req:AuthedReq
   record('audit:alerts', { id: id(), alertId: alert.id, action: 'resolved', actor: req.user!.id, details: 'Alert resolved.', createdAt: alert.updatedAt });
   return ok(res, alert);
 }));
-app.post('/api/v1/ai/taara',requireAuth,requireMonitoringConsent,body(z.object({message:z.string().min(1).max(4000),caseId:z.string().optional()})),asyncRoute(async(req:AuthedRequest,res)=>{const {analysis,reply:generated}=await respondToTaara({victimToken:req.user!.victimToken||'unknown',message:req.body.message}); const safetyState=analysis.crisis?'urgent_support':analysis.confidence<.5?'uncertain':'supportive'; const alert=analysis.crisis?recordAlert({victimToken:req.user!.victimToken,caseReference:req.user!.victimToken,reason:'TAARA message requires human review.',source:'taara',crisis:true,confidence:analysis.confidence}):undefined; record('taara:conversations',{id:id(),victimToken:req.user!.victimToken,createdAt:new Date().toISOString(),safetyState,confidence:analysis.confidence,modelVersion:generated.model}); return ok(res,{reply:generated.reply,safetyState,suggestedAction:generated.suggestedAction,crisis_detected:analysis.crisis,priority:alert?.priority,human_review_required:analysis.crisis,analysis:{confidence:analysis.confidence,provider:generated.provider,model:generated.model}}); }));
+app.post('/api/v1/ai/taara',requireAuth,requireMonitoringConsent,body(z.object({message:z.string().min(1).max(4000),caseId:z.string().optional()})),asyncRoute(async(req:AuthedRequest,res)=>{
+  const {analysis,reply:generated}=await respondToTaara({
+    victimToken:req.user!.victimToken||'unknown',
+    message:req.body.message,
+    caseId: req.body.caseId
+  }); 
+  const safetyState=analysis.crisis?'urgent_support':analysis.confidence<.5?'uncertain':'supportive'; 
+  const alert=analysis.crisis?recordAlert({victimToken:req.user!.victimToken,caseReference:req.user!.victimToken,reason:'TAARA message requires human review.',source:'taara',crisis:true,confidence:analysis.confidence}):undefined; 
+  record('taara:conversations',{id:id(),victimToken:req.user!.victimToken,createdAt:new Date().toISOString(),safetyState,confidence:analysis.confidence,modelVersion:generated.model}); 
+  return ok(res,{reply:generated.reply,safetyState,suggestedAction:generated.suggestedAction,crisis_detected:analysis.crisis,priority:alert?.priority,human_review_required:analysis.crisis,analysis:{confidence:analysis.confidence,provider:generated.provider,model:generated.model}}); 
+}));
 const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:env.UPLOAD_MAX_BYTES},fileFilter:(_req,file,cb)=>{if(!['audio/mpeg','audio/wav','audio/webm','audio/mp4'].includes(file.mimetype)) return cb(new AppError(400,'INVALID_AUDIO_MIME','Only MPEG, WAV, WebM, or MP4 audio is accepted.')); cb(null,true);}});
 app.post('/api/v1/check-ins/voice',requireAuth,requireConsent('voice_analysis'),upload.single('audio'),asyncRoute(async(req:AuthedRequest,res)=>{if(!req.file) throw new AppError(400,'AUDIO_REQUIRED','A supported audio file is required.'); try { const voice=await analyzeVoice({victimToken:req.user!.victimToken||'unknown',audio:req.file.buffer,mimeType:req.file.mimetype,language:(req.body as {language?:string}).language}); const result=record(`checkins:${req.user!.id}`,{id:id(),type:'voice',victimToken:req.user!.victimToken,transcriptAvailable:true,ml:voice.analysis,rawAudioRetained:false,createdAt:new Date().toISOString(),analyticalState:voice.analysis.status==='unavailable'||voice.analysis.insufficientEvidence?'insufficient_evidence':'scored'}); if(voice.analysis.crisis) recordAlert({victimToken:req.user!.victimToken,caseReference:req.user!.victimToken,reason:'Voice check-in requires human review.',source:'voice',crisis:true,confidence:voice.analysis.confidence}); return ok(res,{...result,transcript:voice.transcript},201); } catch { throw new AppError(503,'VOICE_ANALYSIS_UNAVAILABLE','Voice transcription is temporarily unavailable. Please try a text check-in.'); }}));
 app.post('/api/v1/check-ins/ivrs',requireAuth,requireMonitoringConsent,body(z.object({language:z.string().default('en'),responses:z.record(z.string()).default({}),requestCounsellorCall:z.boolean().default(false),provider:z.enum(['simulated','production']).default('simulated')})),asyncRoute(async(req:AuthedRequest,res)=>{const result=record(`checkins:${req.user!.id}`,{id:id(),type:'ivrs',...req.body,createdAt:new Date().toISOString(),analyticalState:'insufficient_evidence'}); if(req.body.requestCounsellorCall) recordAlert({victimToken:req.user!.victimToken,caseReference:req.user!.victimToken,reason:'Survivor requested a counsellor phone call after IVRS check-in.',source:'ivrs',requestedSupport:true,channel:'phone_call'}); return ok(res,result,201)}));
@@ -193,7 +212,7 @@ app.get('/api/v1/community/posts',optionalCommunity,asyncRoute(async(_req,res)=>
 app.post('/api/v1/notifications/sms',requireAuth,body(z.object({phone:z.string().min(8),message:z.string().min(1).max(480)})),asyncRoute(async(req:AuthedRequest,res)=>{await notificationProvider.sendMessage(normalizePhone(req.body.phone),req.body.message); return ok(res,{status:'sent',channel:'sms'},202)}));
 app.get('/api/v1/notifications',requireAuth,asyncRoute(async(req:AuthedRequest,res)=>ok(res,store.records.get(`notifications:${req.user!.id}`)||[]))); app.patch('/api/v1/notifications/:id/read',requireAuth,asyncRoute(async(req,res)=>ok(res,{id:req.params.id,read:true})));
 app.get('/api/v1/admin/:scope',requireAuth,requireRoles('DISTRICT_ADMIN','STATE_ADMIN','NATIONAL_ADMIN'),asyncRoute(async(req,res)=>{ const alerts = store.records.get('alerts:all') || []; const interventions = [...store.records.entries()].flatMap(([key, values]) => key.startsWith('interventions:') ? values : []); return ok(res,{scope:req.params.scope,privacyBoundary:'aggregated_only',caseCount:store.cases.length,alertCount:alerts.length,alertStats:{open:alerts.filter((a:any)=>a.status==='open').length,resolved:alerts.filter((a:any)=>a.status==='resolved').length,urgent:alerts.filter((a:any)=>a.severity==='urgent').length,support_request:alerts.filter((a:any)=>a.severity==='support_request').length},interventionResponseStats:{started:interventions.length,completed:interventions.filter((i:any)=>i.status==='completed').length,feedbackCount:interventions.filter((i:any)=>i.feedback).length},distressTrend:[],recoveryTrend:[],caseStageStats: Object.entries((store.cases||[]).reduce((acc, c:any) => { acc[c.currentStage] = (acc[c.currentStage] || 0) + 1; return acc; }, {} as Record<string, number>)).map(([label, count]) => ({label, count}))}); }));
-app.post('/api/v1/notifications/reminder',requireAuth,body(z.object({type:z.enum(['checkin','followup','support']).default('checkin'),message:z.string().min(1).max(500),scheduledFor:z.string().datetime().optional()})),asyncRoute(async(req:AuthedRequest,res)=>ok(res,record(`notifications:reminders:${req.user!.id}`,{id:id(),...req.body,createdAt:new Date().toISOString(),status:'scheduled'}),201)));
+app.post('/api/v1/notifications/reminder',requireAuth,body(z.object({type:z.enum(['checkin','followup','support']).default('checkin'),daysSinceLastCheckin:z.number().int().min(0).default(0),scheduledFor:z.string().datetime().optional()})),asyncRoute(async(req:AuthedRequest,res)=>{const escalated=getEscalatedMessage(req.body.daysSinceLastCheckin); return ok(res,record(`notifications:reminders:${req.user!.id}`,{id:id(),type:req.body.type,daysSinceLastCheckin:req.body.daysSinceLastCheckin,scheduledFor:req.body.scheduledFor,message:escalated.message,tone:escalated.tone,createdAt:new Date().toISOString(),status:'scheduled'}),201);}));
 app.post('/api/v1/demo/reset',requireAuth,requireRoles('NATIONAL_ADMIN'),asyncRoute(async(_req,res)=>{if(env.NODE_ENV==='production') throw new AppError(404,'NOT_FOUND','Not found.'); store.records.clear(); store.users.clear(); store.blocklist.clear(); return ok(res,{reset:true,mode:'demo_only'});}));
 function optionalCommunity(req:express.Request,_res:express.Response,next:express.NextFunction){next();}
 app.use((err:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{if(err instanceof multer.MulterError&&err.code==='LIMIT_FILE_SIZE') return fail(res,new AppError(413,'AUDIO_TOO_LARGE',`Audio must be no larger than ${env.UPLOAD_MAX_BYTES} bytes.`)); return fail(res,err instanceof Error?err:new Error('Unknown error'));}); export { app };
