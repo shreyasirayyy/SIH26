@@ -1,11 +1,37 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
+import canonicalCases from './synthetic-cases.json';
 import { env } from '../config/env.js';
-import type { CaseRecord, OtpChallenge, TimelineEvent } from '../types/domain.js';
+import type { CaseRecord, TimelineEvent } from '../types/domain.js';
 
-export interface Store { otp: Map<string, OtpChallenge>; cases: CaseRecord[]; timelines: TimelineEvent[]; users: Map<string, any>; records: Map<string, any[]>; blocklist: Set<string>; }
-const demoCase: CaseRecord = { id:'case-demo-001', docket:'NHAA-RJ-2026-004821', victimToken:'VIC_DEMO_8291', survivorName:'Asha (demo)', registeredPhone:'+919876543210', registrationDate:'2026-01-18', state:'Rajasthan', district:'Jaipur', caseCategory:'Witness protection and rehabilitation', incidentDate:'2025-12-11', currentStage:'Investigation', firStatus:'Registered', investigationStatus:'In progress', chargesheetStatus:'Pending', nextHearingDate:'2026-10-14', hearingCount:2, adjournmentCount:0, compensationStatus:'Pending', compensationAmountApproved:250000, compensationAmountReceived:0, protectionStatus:'Under review', relocationStatus:'Not requested', legalAidStatus:'Assigned', rehabilitationStatus:'Support plan active', counsellorAssigned:'demo-counsellor-001', preferredLanguage:'English' };
-export const memoryStore: Store = { otp:new Map(), cases:[demoCase], timelines:[{id:'event-1',caseId:demoCase.id,date:'2026-01-18',type:'case',label:'Case registered'},{id:'event-2',caseId:demoCase.id,date:'2026-02-02',type:'support',label:'Legal aid assigned'},{id:'event-3',caseId:demoCase.id,date:'2026-03-12',type:'wellbeing',label:'First voluntary check-in'}],users:new Map(),records:new Map(),blocklist:new Set() };
+export interface Store { cases: CaseRecord[]; timelines: TimelineEvent[]; users: Map<string, any>; records: Map<string, any[]>; blocklist: Set<string>; }
+
+// This is the only memory-mode case source. It maps the authoritative synthetic
+// dataset without adding another fixture or exposing direct identity data.
+const demoCases: CaseRecord[] = canonicalCases.map((source, index) => ({
+  id: `synthetic-case-${String(index + 1).padStart(3, '0')}`,
+  docket: source.docket_id, victimToken: source.victim_token,
+  survivorName: source.name_masked, registeredPhone: source.registered_mobile_masked,
+  registrationDate: source.complaint_date, state: source.state, district: source.district,
+  caseCategory: source.case_type, incidentDate: source.incident_date, currentStage: source.case_stage,
+  firStatus: source.fir_registered ? 'Registered' : 'Not registered', investigationStatus: source.investigation_status,
+  chargesheetStatus: source.chargesheet_status, nextHearingDate: source.next_court_date,
+  hearingCount: source.previous_hearings, adjournmentCount: source.adjournments,
+  compensationStatus: source.financial_relief_status, compensationAmountApproved: source.approved_amount,
+  compensationAmountReceived: source.disbursed_amount, protectionStatus: source.protection_status,
+  relocationStatus: source.relocation_requested ? 'Requested' : 'Not requested',
+  legalAidStatus: source.legal_aid_assigned ? 'Assigned' : 'Not assigned',
+  rehabilitationStatus: source.rehabilitation_status, counsellorAssigned: source.counsellor_assigned ? 'assigned' : undefined,
+  preferredLanguage: source.preferred_language,
+}));
+export const memoryStore: Store = {
+  cases: demoCases,
+  timelines: demoCases.flatMap((caseRecord) => [
+    { id: `${caseRecord.id}-registered`, caseId: caseRecord.id, date: caseRecord.registrationDate, type: 'case' as const, label: 'Synthetic case registered' },
+    { id: `${caseRecord.id}-monitoring`, caseId: caseRecord.id, date: caseRecord.registrationDate, type: 'wellbeing' as const, label: 'Voluntary wellbeing check-in available' },
+  ]),
+  users: new Map(), records: new Map(), blocklist: new Set(),
+};
 export const supabase: SupabaseClient | null = env.SUPABASE_URL && (env.SUPABASE_SECRET_KEY || env.SUPABASE_PUBLISHABLE_KEY) ? createClient(env.SUPABASE_URL, env.SUPABASE_SECRET_KEY || env.SUPABASE_PUBLISHABLE_KEY!, { auth:{autoRefreshToken:false,persistSession:false} }) : null;
 export const store: Store = memoryStore;
 export const id = () => randomUUID();

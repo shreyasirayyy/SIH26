@@ -13,16 +13,6 @@ export function getSessionToken() {
   return storageGet("saath_access_token");
 }
 
-export function setOtpChallenge(challengeId: string, phone: string) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem("saath_otp_challenge", challengeId);
-  window.localStorage.setItem("saath_otp_phone", phone);
-}
-
-export function getOtpChallenge() {
-  return { challengeId: storageGet("saath_otp_challenge"), phone: storageGet("saath_otp_phone") };
-}
-
 export async function apiRequest<T>(path: string, init: RequestInit = {}): Promise<T> {
   const headers = new Headers(init.headers);
   headers.set("Content-Type", "application/json");

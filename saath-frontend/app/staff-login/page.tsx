@@ -54,7 +54,7 @@ export default function StaffLoginPage() {
       <div className="mt-6 space-y-3">
         <Input placeholder="Staff ID or email" value={id} onChange={(e) => setId(e.target.value)} />
         <Input
-          placeholder="Password / OTP"
+          placeholder="Password"
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}

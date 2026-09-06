@@ -4,9 +4,9 @@ This is a separate Node.js 20+ / TypeScript / Express REST backend for the attac
 
 ## What is real and what is demo
 
-Phone OTP is designed for real delivery. The backend generates a cryptographically secure six-digit code, stores only a peppered SHA-256 hash, enforces expiry, resend cooldown, attempt limits, and rate limiting, and never includes the OTP in a response or log. Set `SMS_PROVIDER=twilio` and the Twilio credentials before production. The default `console` provider is intentionally blocked in production; it is only a local wiring provider and does not return a fake code.
+Authentication is docket/reference-based: `POST /api/v1/cases/connect` accepts a synthetic `reference_id`, validates it through the replaceable mock NHAA adapter, and returns a survivor session. The authoritative demo source is `src/db/synthetic-cases.json` (11 synthetic cases). There is no OTP, SMS authentication, OTP table, or OTP configuration in this product. The optional SMS boundary is only for future notifications.
 
-Case records use a synthetic adapter and the seeded docket `NHAA-RJ-2026-004821` for the hackathon. No production NHAA or government integration is claimed. IVRS has a clearly labeled simulated endpoint until a telephony provider is configured. The ML client delegates to `ML_SERVICE_URL` when present and otherwise uses a low-confidence, non-clinical demo fallback so local development remains testable.
+Case records use a synthetic adapter and the canonical docket `NHAA-RJ-2026-004821` for the hackathon. No production NHAA or government integration is claimed. IVRS has a clearly labeled simulated endpoint until a telephony provider is configured. The ML client delegates to `ML_SERVICE_URL` when present and otherwise returns a controlled unavailable state; it never fabricates an inference.
 
 ## Quick start
 
@@ -20,7 +20,6 @@ npm run dev
 
 The API listens on `http://localhost:4000`. Health is available at `/health`. For Supabase, apply `supabase/migrations/001_initial_schema.sql`, then `supabase/seed/demo.sql`. Use the Supabase secret/service key only on the server. Never put it in the frontend or commit `.env`.
 
-For real OTP, configure `SMS_PROVIDER=twilio`, `SMS_ACCOUNT_SID`, `SMS_AUTH_TOKEN`, and `SMS_FROM_NUMBER`. The provider abstraction is in `src/services/otp.ts`; a future provider should implement `SmsProvider.sendOtp(phone, otp)` without changing route code. The Twilio HTTP call sends only the OTP message and the credentials remain server-side.
 
 ## Configuration and data boundary
 
@@ -34,8 +33,8 @@ Successful responses use `{ success: true, data, request_id }`. Errors use `{ su
 
 ## Project structure
 
-`src/app.ts` defines HTTP composition and route contracts. `src/services` contains OTP and ML providers. `src/middleware` contains JWT/RBAC. `src/db/store.ts` provides the local repository plus Supabase client. `supabase/migrations` contains relational schema, indexes, constraints, aggregate view, and RLS. `tests` covers the security-critical OTP and access paths.
+`src/app.ts` defines HTTP composition and route contracts. `src/services/case` contains the synthetic, replaceable NHAA adapter; `src/services/taara` is the provider-neutral TAARA boundary. `src/middleware` contains JWT/RBAC. `src/db/store.ts` provides local demo storage plus a Supabase client. `supabase/migrations` contains relational schema, indexes, constraints, aggregate view, and RLS.
 
 ## Production checklist
 
-Use a managed secret store, a random `JWT_SECRET` and `OTP_PEPPER`, HTTPS, a real SMS provider, a real ML service with request authentication, Supabase backups, structured log redaction, object-storage lifecycle deletion, alert escalation runbooks, and a human review process for crisis signals. The backend never makes autonomous medical, police, legal, relocation, or hospitalization decisions.
+Use a managed secret store, a random `JWT_SECRET`, HTTPS, a real ML service with request authentication, Supabase backups, structured log redaction, object-storage lifecycle deletion, alert escalation runbooks, and a human review process for crisis signals. The backend never makes autonomous medical, police, legal, relocation, or hospitalization decisions.
