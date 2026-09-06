@@ -40,11 +40,17 @@ const recordAlert = (payload: { victimToken?: string; caseReference?: string; re
     existing.updatedAt = now;
     existing.lastTriggeredAt = now;
     existing.confidence = payload.confidence ?? existing.confidence;
-    record('audit:alerts', { id: id(), alertId: existing.id, action: 'bumped', actor: 'system', details: 'Duplicate crisis alert collapsed into an existing alert.', createdAt: now });
+    // Equivalent, active alerts for the same survivor and reason are collapsed
+    // for 15 minutes.  The event remains visible through occurrenceCount and
+    // lastSeenAt, without creating an unlimited active-alert queue.
+    existing.occurrenceCount = (existing.occurrenceCount ?? existing.count ?? 1) + 1;
+    existing.count = existing.occurrenceCount;
+    existing.lastSeenAt = now;
+    record('audit:alerts', { id: id(), alertId: existing.id, action: 'alert_updated', actor: 'system', details: { reason: 'deduplicated equivalent alert' }, createdAt: now });
     return existing;
   }
   const created = record('alerts:all', { id: id(), ...normalized, caseReference: payload.caseReference ?? payload.victimToken, victimToken: payload.victimToken ?? payload.caseReference, createdAt: now, updatedAt: now });
-  record('audit:alerts', { id: id(), alertId: created.id, action: 'created', actor: 'system', details: payload.reason, createdAt: now });
+  record('audit:alerts', { id: id(), alertId: created.id, action: 'alert_created', actor: 'system', details: { source: payload.source ?? 'manual' }, createdAt: now });
   return created;
 };
 const recordAudit = (actor: string, action: string, target: string, details?: Record<string, unknown>) => record('audit:alerts', { id: id(), actor, action, target, details: details ?? {}, createdAt: new Date().toISOString() });
@@ -82,7 +88,7 @@ app.post('/api/v1/auth/refresh', asyncRoute(async (req, res) => {
   const expiredAtMs = decoded?.exp ? decoded.exp * 1000 : now;
   if (decoded?.jti && store.blocklist.has(decoded.jti)) throw new AppError(401, 'TOKEN_REVOKED', 'This session has been logged out.');
   if (expiredAtMs && now > expiredAtMs + 60_000) throw new AppError(401, 'TOKEN_EXPIRED', 'The token is too old to refresh.');
-  const refreshed = signUser({ id: decoded.id, role: decoded.role, victimToken: decoded.victimToken, phone: decoded.phone, name: decoded.name, district: decoded.district, state: decoded.state, jti: decoded.jti ?? randomUUID() });
+  const refreshed = signUser({ id: decoded.id, role: decoded.role, victimToken: decoded.victimToken, district: decoded.district, state: decoded.state, jti: decoded.jti ?? randomUUID() });
   return ok(res, { accessToken: refreshed, tokenType: 'Bearer' });
 }));
 app.post('/api/v1/auth/logout', asyncRoute(async (req, res) => {
@@ -108,8 +114,56 @@ const checkinSchema=z.object({victimToken:z.string().optional(),mood:z.number().
 app.post('/api/v1/check-ins/mood',requireAuth,requireMonitoringConsent,body(checkinSchema.extend({mood:z.number().int().min(1).max(5),sleep:z.number().int().min(1).max(5),perceivedSafety:z.number().int().min(1).max(5),socialConnectedness:z.number().int().min(1).max(5)})),asyncRoute(async(req:AuthedRequest,res)=>{const summary=`Structured check-in: mood ${req.body.mood}/5, sleep ${req.body.sleep}/5, fear ${req.body.fear??'not answered'}/5, unwanted memories ${req.body.intrusion??'not answered'}/5, safety ${req.body.perceivedSafety}/5, social connection ${req.body.socialConnectedness}/5.`; const ml=await analyzeText({victimToken:req.user!.victimToken||'unknown',text:summary}); const result=record(`checkins:${req.user!.id}`,{id:id(),type:'mood',...req.body,ml,createdAt:new Date().toISOString(),analyticalState:ml.confidence<.5?'insufficient_evidence':'scored'}); if(ml.crisis) recordAlert({victimToken:req.user!.victimToken,caseReference:req.user!.victimToken,reason:'Structured check-in requires human review.',source:'checkin',crisis:true,confidence:ml.confidence}); return ok(res,result,201)}));
 app.post('/api/v1/check-ins/quick-mood',requireAuth,requireMonitoringConsent,body(z.object({mood:z.number().int().min(1).max(5),label:z.string().min(1).max(80)})),asyncRoute(async(req:AuthedRequest,res)=>{const ml=await analyzeText({victimToken:req.user!.victimToken||'unknown',text:`Quick wellbeing check-in: the survivor selected mood "${req.body.label}" (${req.body.mood}/5).`}); const result=record(`checkins:${req.user!.id}`,{id:id(),type:'quick_mood',mood:req.body.mood,label:req.body.label,ml,createdAt:new Date().toISOString(),analyticalState:ml.confidence<.5?'insufficient_evidence':'scored'}); return ok(res,result,201)}));
 app.post('/api/v1/check-ins/text',requireAuth,requireConsent('text_analysis'),body(checkinSchema.extend({text:z.string().trim().min(1).max(10000)})),asyncRoute(async(req:AuthedRequest,res)=>{const ml=await analyzeText({victimToken:req.user!.victimToken||'unknown',text:req.body.text,language:req.body.language}); const result=record(`checkins:${req.user!.id}`,{id:id(),type:'text',victimToken:req.user!.victimToken,textSubmitted:true,ml,createdAt:new Date().toISOString(),analyticalState:ml.status==='unavailable'||ml.insufficientEvidence?'insufficient_evidence':'scored'}); if(ml.crisis) recordAlert({victimToken:req.user!.victimToken,caseReference:req.user!.victimToken,reason:'Crisis safety screening requires human review.',source:'text',crisis:true,confidence:ml.confidence}); return ok(res,result,201); }));
-app.post('/api/v1/ai/analyze-text',requireAuth,requireMonitoringConsent,body(z.object({text:z.string().min(1).max(10000),language:z.string().default('en')})),asyncRoute(async(req:AuthedRequest,res)=>{const analysis=await analyzeText({victimToken:req.user!.victimToken||'unknown',text:req.body.text,language:req.body.language}); return ok(res,{analysis,analyticalState:analysis.confidence<.5?'insufficient_evidence':'scored'}); }));
-app.post('/api/v1/ai/crisis-screen',requireAuth,requireMonitoringConsent,body(z.object({text:z.string().min(1).max(10000),language:z.string().default('en')})),asyncRoute(async(req:AuthedRequest,res)=>{const analysis=await analyzeText({victimToken:req.user!.victimToken||'unknown',text:req.body.text,language:req.body.language}); if(analysis.crisis) recordAlert({victimToken:req.user!.victimToken,caseReference:req.user!.victimToken,reason:'Crisis screening requires human review.',source:'crisis_screen',crisis:true,confidence:analysis.confidence}); return ok(res,{crisis:analysis.crisis,confidence:analysis.confidence,humanReviewRequired:analysis.crisis,safeResponse:analysis.crisis?'Please contact immediate human support and your counsellor.':'No immediate crisis signal was detected.'}); }));
+app.get('/api/v1/monitoring/baseline',requireAuth,asyncRoute(async(req:AuthedRequest,res)=>{
+  const observations = store.records.get(`checkins:${req.user!.id}`) || [];
+  const baseline = observations.length > 0 ? observations[0].ml : { distressScore: null, recoveryScore: null, confidence: 0, insufficientEvidence: true };
+  return ok(res, { baseline: baseline.distressScore, recovery: baseline.recoveryScore, confidence: baseline.confidence, trend: 'stable', timestamp: new Date().toISOString(), insufficientEvidence: baseline.insufficientEvidence });
+}));
+app.get('/api/v1/monitoring/distress',requireAuth,asyncRoute(async(req:AuthedRequest,res)=>{
+  const observations = store.records.get(`checkins:${req.user!.id}`) || [];
+  const latest = observations.at(-1)?.ml ?? { distressScore: null, confidence: 0, insufficientEvidence: true };
+  return ok(res, { score: latest.distressScore, confidence: latest.confidence, trend: 'stable', contributingFactors: latest.contributingFactors ?? [], insufficientEvidence: latest.insufficientEvidence, timestamp: new Date().toISOString() });
+}));
+app.get('/api/v1/monitoring/recovery',requireAuth,asyncRoute(async(req:AuthedRequest,res)=>{
+  const observations = store.records.get(`checkins:${req.user!.id}`) || [];
+  const latest = observations.at(-1)?.ml ?? { recoveryScore: null, confidence: 0, insufficientEvidence: true };
+  return ok(res, { score: latest.recoveryScore, confidence: latest.confidence, trend: 'stable', contributingFactors: latest.contributingFactors ?? [], insufficientEvidence: latest.insufficientEvidence, timestamp: new Date().toISOString() });
+}));
+app.get('/api/v1/monitoring/trends',requireAuth,asyncRoute(async(req:AuthedRequest,res)=>{
+  const observations = store.records.get(`checkins:${req.user!.id}`) || [];
+  return ok(res, { distressTrend: [], recoveryTrend: [], baselineComparison: 'stable', recentObservations: observations.slice(-5) });
+}));
+app.get('/api/v1/alerts',requireAuth,asyncRoute(async(req:AuthedRequest,res)=>{
+  const allAlerts = store.records.get('alerts:all') || [];
+  const filtered = req.user!.role === 'SURVIVOR' ? allAlerts.filter((a:any) => a.victimToken === req.user!.victimToken) : allAlerts;
+  return ok(res, filtered);
+}));
+app.post('/api/v1/alerts/:id/acknowledge',requireAuth,asyncRoute(async(req:AuthedRequest,res)=>{
+  const alerts = store.records.get('alerts:all') || [];
+  const alert = alerts.find((a:any) => a.id === req.params.id);
+  if(!alert) throw new AppError(404,'ALERT_NOT_FOUND','Alert not found.');
+  alert.status = 'ACKNOWLEDGED';
+  alert.updatedAt = new Date().toISOString();
+  return ok(res, alert);
+}));
+app.post('/api/v1/alerts/:id/assign',requireAuth,asyncRoute(async(req:AuthedRequest,res)=>{
+  const alerts = store.records.get('alerts:all') || [];
+  const alert = alerts.find((a:any) => a.id === req.params.id);
+  if(!alert) throw new AppError(404,'ALERT_NOT_FOUND','Alert not found.');
+  alert.status = 'ASSIGNED';
+  alert.updatedAt = new Date().toISOString();
+  return ok(res, alert);
+}));
+app.post('/api/v1/alerts/:id/resolve',requireAuth,asyncRoute(async(req:AuthedRequest,res)=>{
+  const alerts = store.records.get('alerts:all') || [];
+  const alert = alerts.find((a:any) => a.id === req.params.id);
+  if(!alert) throw new AppError(404,'ALERT_NOT_FOUND','Alert not found.');
+  if(alert.crisis && req.user!.role === 'SURVIVOR') throw new AppError(403,'FORBIDDEN','Only staff can resolve crisis alerts.');
+  alert.status = 'RESOLVED';
+  alert.updatedAt = new Date().toISOString();
+  record('audit:alerts', { id: id(), alertId: alert.id, action: 'resolved', actor: req.user!.id, details: 'Alert resolved.', createdAt: alert.updatedAt });
+  return ok(res, alert);
+}));
 app.post('/api/v1/ai/taara',requireAuth,requireMonitoringConsent,body(z.object({message:z.string().min(1).max(4000),caseId:z.string().optional()})),asyncRoute(async(req:AuthedRequest,res)=>{const {analysis,reply:generated}=await respondToTaara({victimToken:req.user!.victimToken||'unknown',message:req.body.message}); const safetyState=analysis.crisis?'urgent_support':analysis.confidence<.5?'uncertain':'supportive'; const alert=analysis.crisis?recordAlert({victimToken:req.user!.victimToken,caseReference:req.user!.victimToken,reason:'TAARA message requires human review.',source:'taara',crisis:true,confidence:analysis.confidence}):undefined; record('taara:conversations',{id:id(),victimToken:req.user!.victimToken,createdAt:new Date().toISOString(),safetyState,confidence:analysis.confidence,modelVersion:generated.model}); return ok(res,{reply:generated.reply,safetyState,suggestedAction:generated.suggestedAction,crisis_detected:analysis.crisis,priority:alert?.priority,human_review_required:analysis.crisis,analysis:{confidence:analysis.confidence,provider:generated.provider,model:generated.model}}); }));
 const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:env.UPLOAD_MAX_BYTES},fileFilter:(_req,file,cb)=>{if(!['audio/mpeg','audio/wav','audio/webm','audio/mp4'].includes(file.mimetype)) return cb(new AppError(400,'INVALID_AUDIO_MIME','Only MPEG, WAV, WebM, or MP4 audio is accepted.')); cb(null,true);}});
 app.post('/api/v1/check-ins/voice',requireAuth,requireConsent('voice_analysis'),upload.single('audio'),asyncRoute(async(req:AuthedRequest,res)=>{if(!req.file) throw new AppError(400,'AUDIO_REQUIRED','A supported audio file is required.'); try { const voice=await analyzeVoice({victimToken:req.user!.victimToken||'unknown',audio:req.file.buffer,mimeType:req.file.mimetype,language:(req.body as {language?:string}).language}); const result=record(`checkins:${req.user!.id}`,{id:id(),type:'voice',victimToken:req.user!.victimToken,transcriptAvailable:true,ml:voice.analysis,rawAudioRetained:false,createdAt:new Date().toISOString(),analyticalState:voice.analysis.status==='unavailable'||voice.analysis.insufficientEvidence?'insufficient_evidence':'scored'}); if(voice.analysis.crisis) recordAlert({victimToken:req.user!.victimToken,caseReference:req.user!.victimToken,reason:'Voice check-in requires human review.',source:'voice',crisis:true,confidence:voice.analysis.confidence}); return ok(res,{...result,transcript:voice.transcript},201); } catch { throw new AppError(503,'VOICE_ANALYSIS_UNAVAILABLE','Voice transcription is temporarily unavailable. Please try a text check-in.'); }}));
@@ -121,7 +175,6 @@ app.get('/api/v1/monitoring/:kind',requireAuth,asyncRoute(async(req:AuthedReques
   const records = store.records.get(`checkins:${req.user!.id}`) || [];
   return ok(res,{kind:req.params.kind,state:'insufficient_evidence',score:null,confidence:null,factors:[],modelVersion:'not_available',victimToken:req.user!.victimToken,records,summary: records.length ? 'observed' : 'no_data'});
 }));
-app.get('/api/v1/alerts',requireAuth,requireRoles('COUNSELLOR','DISTRICT_ADMIN','STATE_ADMIN','NATIONAL_ADMIN'),asyncRoute(async(_req,res)=>ok(res,store.records.get('alerts:all')||[])));
 app.post('/api/v1/alerts/:id/:action',requireAuth,requireRoles('COUNSELLOR','DISTRICT_ADMIN','STATE_ADMIN','NATIONAL_ADMIN'),body(z.object({note:z.string().max(1000).optional(),assigneeId:z.string().optional()})),asyncRoute(async(req:AuthedRequest,res)=>{const alerts=(store.records.get('alerts:all')||[]); const alert=alerts.find((x:any)=>x.id===req.params.id); if(!alert) throw new AppError(404,'ALERT_NOT_FOUND','Alert not found.'); const action=req.params.action; const now=new Date().toISOString(); if(action==='resolve'){ alert.status='RESOLVED'; alert.resolvedAt=now; } else if(action==='acknowledge'){ alert.status='ACKNOWLEDGED'; alert.acknowledgedAt=now; alert.firstAcknowledgedAt ??= now; } else if(action==='assign'){ if(!req.body.assigneeId) throw new AppError(400,'ASSIGNEE_REQUIRED','An assignee is required.'); alert.status='ASSIGNED'; alert.assigneeId=req.body.assigneeId; alert.firstAssignedAt ??= now; } else { throw new AppError(400,'INVALID_ACTION','Unsupported alert action.'); } alert.updatedAt=now; recordAudit(req.user!.id, `alert_${action}d`, alert.id, { note: req.body.note, assigneeId: req.body.assigneeId ?? null }); return ok(res,alert);}));
 app.get('/api/v1/counsellor/cases',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(_req,res)=>ok(res,store.cases)));
 app.get('/api/v1/counsellor/cases/:id',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req,res)=>{const c=store.cases.find(x=>x.id===req.params.id); if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); return ok(res,{case:c,view:'summary',timeline:store.timelines.filter(x=>x.caseId===c.id)});}));

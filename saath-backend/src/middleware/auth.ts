@@ -7,7 +7,7 @@ import { AppError } from '../utils/http.js';
 import type { AuthUser, Role } from '../types/domain.js';
 export type AuthedRequest = Request & { user?: AuthUser; requestId?: string };
 export function signUser(user:AuthUser){
-  const payload = { ...user, jti: user.jti ?? randomUUID() };
+  const payload = { id: user.id, role: user.role, ...(user.victimToken ? { victimToken: user.victimToken } : {}), ...(user.district ? { district: user.district } : {}), ...(user.state ? { state: user.state } : {}), jti: user.jti ?? randomUUID() };
   return jwt.sign(payload, env.JWT_SECRET, { expiresIn: env.JWT_EXPIRES_IN as jwt.SignOptions['expiresIn'] });
 }
 export function requireAuth(req:AuthedRequest,_res:Response,next:NextFunction){
