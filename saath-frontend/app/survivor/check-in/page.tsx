@@ -121,7 +121,7 @@ export default function CheckInPage() {
         <span className="rounded-xl bg-[#0f766e] px-4 py-2 text-xs font-bold text-white">{hindi ? "टेक्स्ट" : "Text"}</span>
         <a href="/survivor/check-in/voice" className="rounded-xl px-4 py-2 text-xs font-bold text-[#60706a] hover:bg-white">{hindi ? "आवाज़" : "Voice"}</a>
         <a href="/survivor/check-in/ivrs" className="rounded-xl px-4 py-2 text-xs font-bold text-[#60706a] hover:bg-white">IVRS</a>
-        <a href="/survivor/notifications" className="rounded-xl px-4 py-2 text-xs font-bold text-[#60706a] hover:bg-white">{hindi ? "SMS सूचनाएँ" : "SMS reminders"}</a>
+        <a href="/survivor/check-in/sms-reminders" className="rounded-xl px-4 py-2 text-xs font-bold text-[#60706a] hover:bg-white">{hindi ? "SMS सूचनाएँ" : "SMS reminders"}</a>
       </div>
       <div className="flex items-center gap-1.5 mb-6">
         {questions.map((_, i) => (

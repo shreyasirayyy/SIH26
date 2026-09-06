@@ -6,9 +6,9 @@ This audit is based on repository inspection. Runtime claims are marked verified
 
 ## Executive Summary
 
-The repository contains a useful Express/Next.js prototype with synthetic case data, a broad Supabase migration, JWT/RBAC middleware, OTP hashing logic, Groq/Whisper adapters, and a small backend test suite. The end-to-end product flow is not complete. Most backend domain writes and reads use an in-memory store, frontend screens still use demo data or local state, and real SMS/Supabase/Groq behavior could not be verified from the available terminal checkout.
+The repository contains a useful Express/Next.js prototype with synthetic case data, a broad Supabase migration, JWT/RBAC middleware, Groq/Whisper adapters, and a small backend test suite. OTP is not part of the active source architecture. The end-to-end product flow is not complete. Most backend domain writes and reads use an in-memory store, frontend screens still use demo data or local state, and real Supabase/Groq behavior could not be verified from the available terminal checkout.
 
-Critical security finding: `saath-backend/.env` contains live-looking provider credentials. They are not reproduced here. Rotate any exposed credentials, remove the file from version control if tracked, and use a secret manager or ignored local environment file.
+Critical security finding: the prior local environment contained a live-looking provider credential. The AI key has been removed from the working environment file; rotate it if it was ever exposed, and use a secret manager or ignored local environment file.
 
 ## Evidence and Status
 
@@ -35,19 +35,19 @@ Critical security finding: `saath-backend/.env` contains live-looking provider c
 | Notifications | Partial | `/notifications`, SMS route | Memory only | Page does not load/read API | No | JWT | SMS provider errors | No tests | Local UI | No persisted notification creation or audit | PARTIALLY DONE |
 | Hope Vault/Safe Circle/community/resources | Partial | Routes exist | Memory only except schema fragments | Mostly local/static UI | No/optional | JWT on private actions | Validation varies | No tests | Demo resources/posts | Ownership and persistence incomplete | PARTIALLY DONE |
 | Supabase schema | Yes | Client helpers exist | Broad migration with RLS and aggregate view | No end-to-end persistence | No | Service key intended server-side | Insert/select helper errors | No DB connectivity test | Seed exists | Service key must not reach frontend | PARTIALLY DONE |
-| Security/audit | Partial | Middleware and limits exist | `audit_logs` table exists | No | No | JWT/RBAC | Central error envelope | Limited tests | Development defaults | Exposed `.env`, public staff token, localStorage token | PARTIALLY DONE |
+| Security/audit | Partial | Middleware and limits exist | `audit_logs` table exists | No | No | JWT/RBAC | Central error envelope | Limited tests | Development defaults | Public staff token and localStorage token remain; environment file is ignored | PARTIALLY DONE |
 
-## OTP Determination
+## Survivor access determination
 
-**Status: PARTIALLY DONE and BLOCKED for real delivery.**
+**Status: Docket-only access is active; OTP is removed.**
 
-The backend has secure random OTP generation only in production mode, peppered hashing, expiry, attempt limits, one-use invalidation, timing-safe comparison, normalization, and resend cooldown. Development mode uses `DEMO_OTP`, the default provider is a console provider, and the frontend visibly displays `482913` and accepts any six digits when no challenge exists. Real SMS cannot be claimed because provider credentials and an actual delivery were not verified. The verify route also accepts a phone field without comparing it to the challenge phone.
+The active survivor access flow is an exact synthetic NHAA docket lookup followed by a JWT session. There are no OTP routes, OTP service, OTP table, OTP environment variables, or OTP screens in the active source tree. Phone data remains only where required for explicit notifications or Safe Circle support. Historical/generated ignored output may still contain old references and is not executable source; it must not be restored.
 
 ## Supabase Determination
 
 **Status: PARTIALLY DONE; runtime connectivity NOT VERIFIED.**
 
-The migration defines identity separation, cases, consents, observations, signals, baselines, scores, alerts, interventions, follow-ups, contacts, resources, notifications, audit logs, and an aggregate view. The runtime store remains `memoryStore`; only selected inserts are attempted when `DATA_MODE=supabase`. Reads and most writes never reach Supabase. OTP verification generates a non-UUID user ID while `users.id` is UUID, so the current user insert is incompatible with the migration.
+The migration defines identity separation, cases, consents, observations, signals, baselines, scores, alerts, interventions, follow-ups, contacts, resources, notifications, audit logs, and an aggregate view. The runtime store remains `memoryStore`; only selected inserts are attempted when `DATA_MODE=supabase`. Reads and most writes never reach Supabase. The current docket session identifier is not yet mapped to the UUID-backed Supabase identity model.
 
 ## Groq/AI Determination
 
@@ -61,11 +61,9 @@ The terminal available to this session resolved to `C:\Users\yadav` and did not 
 
 ## Highest-Priority Findings
 
-1. Remove the frontend demo OTP display and fallback acceptance; require the backend challenge path.
-2. Configure and test a real SMS provider, or keep the flow explicitly BLOCKED.
-3. Remove or protect public staff-token issuance before any non-local deployment.
-4. Replace memory-only domain persistence with a consistent repository layer and fix UUID identity mapping.
-5. Enforce consent and monitoring state before text, voice, or behavioural processing.
-6. Implement personal baseline, distress/recovery, alert mutation/deduplication, assignment checks, and audit logging.
-7. Rotate exposed credentials and add secret scanning/ignore rules.
-8. Connect frontend case, consent, monitoring, staff, alert, admin, notification, and history screens to real API responses.
+1. Remove or protect public staff-token issuance before any non-local deployment.
+2. Replace memory-only domain persistence with a consistent repository layer and fix UUID identity mapping.
+3. Enforce consent and monitoring state before text, voice, or behavioural processing.
+4. Implement personal baseline, distress/recovery, alert mutation/deduplication, assignment checks, and audit logging.
+5. Rotate exposed credentials and add secret scanning/ignore rules.
+6. Connect frontend case, consent, monitoring, staff, alert, admin, notification, and history screens to real API responses.

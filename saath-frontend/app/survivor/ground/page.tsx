@@ -42,8 +42,8 @@ export default function GroundPage() {
 					<h2 className="mt-3 font-display text-3xl text-[#263c35]">{current.n} {current.label}</h2>
 					<p className="mt-4 text-sm leading-relaxed text-[#6b7b75]">Take your time. You can name them silently or out loud.</p>
 
-					<button onClick={() => setStep((s) => Math.min(4, s + 1))} className="mt-8 rounded-full bg-[#0f766e] px-7 py-3 text-sm font-bold text-white">
-						{step === 4 ? "You’re here" : "I’m ready"}
+					<button onClick={() => { if (step < 4) setStep(step + 1); }} className="mt-8 rounded-full bg-[#0f766e] px-7 py-3 text-sm font-bold text-white">
+						{step === 4 ? "You’re here" : "Next"}
 					</button>
 
 					{step === 4 && <InterventionFeedback activity="ground" />}

@@ -113,9 +113,9 @@ export default function MyCasePage() {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between text-sm">
-      <span className="text-text-secondary">{label}</span>
-      <span className="font-medium">{value}</span>
+    <div className="flex justify-between py-2 border-b border-border-color last:border-0">
+      <span className="text-sm text-text-secondary">{label}</span>
+      <span className="text-sm font-medium text-text-primary">{value}</span>
     </div>
   );
 }

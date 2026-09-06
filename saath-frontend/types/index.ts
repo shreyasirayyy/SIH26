@@ -1,6 +1,7 @@
 export type Role = "survivor" | "counsellor" | "district" | "state" | "national";
 
 export interface CaseRecord {
+  id: string;
   docket: string;
   victimToken: string;
   survivorName: string;

@@ -34,7 +34,7 @@ interface AppState {
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       role: null,
       victimToken: null,
       docket: null,
@@ -75,7 +75,3 @@ export const useAppStore = create<AppState>()(
     { name: "saath-demo-session" }
   )
 );
-
-function get() {
-  return useAppStore.getState();
-}

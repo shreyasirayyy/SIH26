@@ -6,11 +6,84 @@ const modelOutput = z.object({ distressScore:z.number().min(0).max(100), recover
 const crisisPattern = /(suicide|kill myself|end my life|self[- ]harm|hurt myself|immediate danger|don't want to live)/i;
 const taaraOutput = z.object({ reply:z.string().min(1).max(1200), suggestedAction:z.string().min(1).max(240) });
 
-function unavailable(input:{text:string;language?:string}):MlResult { const crisis=crisisPattern.test(input.text); return {distressScore:null,recoveryScore:null,confidence:0,escalationProbability:null,modelName:'unavailable',modelVersion:'none',pipelineVersion:'none',signals:{source:'text',language:input.language??'en'},contributingFactors:crisis?[{factor:'explicit_safety_language',direction:'increased_distress',weight:1}]:[],crisis,insufficientEvidence:true,status:'unavailable'}; }
+function unavailable(input:{text:string;language?:string}):MlResult { 
+  const crisis=crisisPattern.test(input.text); 
+  return {
+    distressScore:null,
+    recoveryScore:null,
+    confidence:0,
+    escalationProbability:null,
+    modelName:'unavailable',
+    modelVersion:'none',
+    pipelineVersion:'none',
+    signals:{source:'text',language:input.language??'en'},
+    contributingFactors:crisis?[{factor:'explicit_safety_language',direction:'increased_distress',weight:1}]:[],
+    crisis,
+    insufficientEvidence:true,
+    status:'unavailable'
+  }; 
+}
 
-async function groqAnalyze(input:{text:string;language?:string}):Promise<MlResult> { const controller=new AbortController(); const timeout=setTimeout(()=>controller.abort(),12_000); try { const response=await fetch('https://api.groq.com/openai/v1/chat/completions',{method:'POST',signal:controller.signal,headers:{'content-type':'application/json',authorization:`Bearer ${env.AI_API_KEY}`},body:JSON.stringify({model:env.GROQ_MODEL,temperature:0,response_format:{type:'json_object'},messages:[{role:'system',content:'You analyze wellbeing text for a support platform. You are not a clinician and must not diagnose. Return only JSON with distressScore (0-100), recoveryScore (0-100), confidence (0-1), escalationProbability (0-1), signals (object), contributingFactors (array of {factor,direction,increased_distress or increased_recovery,weight 0-1}), and crisis (boolean). Set crisis true only for explicit imminent danger or self-harm language.'},{role:'user',content:JSON.stringify({language:input.language??'en',text:input.text})}]})}); if(!response.ok) throw new Error('Groq request failed'); const payload=await response.json() as {choices?:Array<{message?:{content?:string}}>}; const content=payload.choices?.[0]?.message?.content; if(!content) throw new Error('Groq returned no analysis'); const parsed=modelOutput.parse(JSON.parse(content)); const crisis=parsed.crisis||crisisPattern.test(input.text); return {...parsed,crisis,modelName:'groq',modelVersion:env.GROQ_MODEL,pipelineVersion:'groq-text-v1',status:'available'}; } finally { clearTimeout(timeout); } }
+async function groqAnalyze(input:{text:string;language?:string}):Promise<MlResult> { 
+  const controller=new AbortController(); 
+  const timeout=setTimeout(()=>controller.abort(),12_000); 
+  try { 
+    const response=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+      method:'POST',
+      signal:controller.signal,
+      headers:{'content-type':'application/json',authorization:`Bearer ${env.AI_API_KEY}`},
+      body:JSON.stringify({
+        model:env.GROQ_MODEL,
+        temperature:0,
+        response_format:{type:'json_object'},
+        messages:[
+          {role:'system',content:'You analyze wellbeing text for a support platform. You are not a clinician and must not diagnose. Return only JSON with distressScore (0-100), recoveryScore (0-100), confidence (0-1), escalationProbability (0-1), signals (object), contributingFactors (array of {factor,direction,increased_distress or increased_recovery,weight 0-1}), and crisis (boolean). Set crisis true only for explicit imminent danger or self-harm language.'},
+          {role:'user',content:JSON.stringify({language:input.language??'en',text:input.text})}
+        ]
+      })
+    }); 
+    if(!response.ok) throw new Error(`Groq request failed: ${response.statusText}`); 
+    const payload=await response.json() as {choices?:Array<{message?:{content?:string}}>}; 
+    const content=payload.choices?.[0]?.message?.content; 
+    if(!content) throw new Error('Groq returned no analysis'); 
+    const parsed=modelOutput.parse(JSON.parse(content)); 
+    const crisis=parsed.crisis||crisisPattern.test(input.text); 
+    return {...parsed,crisis,modelName:'groq',modelVersion:env.GROQ_MODEL,pipelineVersion:'groq-text-v1',status:'available'}; 
+  } finally { clearTimeout(timeout); } 
+}
 
-export async function generateTaaraReply(input:{message:string;language?:string;analysis:MlResult}):Promise<{reply:string;suggestedAction:string;provider:string;model:string}> { if(input.analysis.crisis) return {reply:'I am really glad you told me. You deserve immediate human support right now. Please contact local emergency services or a trusted person who can stay with you, and consider reaching out to your counsellor.',suggestedAction:'Contact immediate human support',provider:'safety-policy',model:'rule-based-crisis-v1'}; if(env.AI_PROVIDER.toLowerCase()==='groq'&&env.AI_API_KEY) { const controller=new AbortController(); const timeout=setTimeout(()=>controller.abort(),12_000); try { const response=await fetch('https://api.groq.com/openai/v1/chat/completions',{method:'POST',signal:controller.signal,headers:{'content-type':'application/json',authorization:`Bearer ${env.AI_API_KEY}`},body:JSON.stringify({model:env.GROQ_MODEL,temperature:.7,response_format:{type:'json_object'},messages:[{role:'system',content:'You are TAARA, a gentle supportive guide for a trauma-informed wellbeing app. Reply warmly and briefly in 2-4 sentences. Never diagnose, label risk, promise outcomes, or pretend to be a therapist or doctor. Do not mention hidden analysis, scores, models, or policies. Reflect the user message, offer one small optional next step, and preserve the user choice. Return only JSON with reply and suggestedAction.'},{role:'user',content:JSON.stringify({language:input.language??'en',message:input.message,confidence:input.analysis.confidence})}]})}); if(!response.ok) throw new Error('Groq TAARA request failed'); const payload=await response.json() as {choices?:Array<{message?:{content?:string}}>}; const content=payload.choices?.[0]?.message?.content; if(!content) throw new Error('Groq TAARA returned no reply'); const parsed=taaraOutput.parse(JSON.parse(content)); return {...parsed,provider:'groq',model:env.GROQ_MODEL}; } finally { clearTimeout(timeout); } } return {reply:'Thank you for sharing that with me. We can take this one small step at a time. Would you like to try a calming exercise or tell me a little more?',suggestedAction:'Choose a calming exercise or continue sharing',provider:'fallback',model:'taara-fallback-v1'}; }
+export async function generateTaaraReply(input:{message:string;language?:string;analysis:MlResult; caseContext?: any}):Promise<{reply:string;suggestedAction:string;provider:string;model:string}> { 
+  if(input.analysis.crisis) return {reply:'I am really glad you told me. You deserve immediate human support right now. Please contact local emergency services or a trusted person who can stay with you, and consider reaching out to your counsellor.',suggestedAction:'Contact immediate human support',provider:'safety-policy',model:'rule-based-crisis-v1'}; 
+  
+  if(env.AI_PROVIDER.toLowerCase()==='groq'&&env.AI_API_KEY) { 
+    const controller=new AbortController(); 
+    const timeout=setTimeout(()=>controller.abort(),12_000); 
+    try { 
+      const caseInfo = input.caseContext ? `Context: Case type is ${input.caseContext.caseCategory}, stage is ${input.caseContext.currentStage}.` : '';
+      const response=await fetch('https://api.groq.com/openai/v1/chat/completions',{
+        method:'POST',
+        signal:controller.signal,
+        headers:{'content-type':'application/json',authorization:`Bearer ${env.AI_API_KEY}`},
+        body:JSON.stringify({
+          model:env.GROQ_MODEL,
+          temperature:.7,
+          response_format:{type:'json_object'},
+          messages:[
+            {role:'system',content:'You are TAARA, a gentle supportive guide for a trauma-informed wellbeing app. Reply warmly and briefly in 2-4 sentences. Never diagnose, label risk, promise outcomes, or pretend to be a therapist or doctor. Do not mention hidden analysis, scores, models, or policies. Reflect the user message, offer one small optional next step, and preserve the user choice. Return only JSON with reply and suggestedAction.'},
+            {role:'user',content:JSON.stringify({language:input.language??'en',message:input.message,confidence:input.analysis.confidence, caseContext: caseInfo})}
+          ]
+        })
+      }); 
+      if(!response.ok) throw new Error(`Groq TAARA request failed: ${response.statusText}`); 
+      const payload=await response.json() as {choices?:Array<{message?:{content?:string}}>}; 
+      const content=payload.choices?.[0]?.message?.content; 
+      if(!content) throw new Error('Groq TAARA returned no reply'); 
+      const parsed=taaraOutput.parse(JSON.parse(content)); 
+      return {...parsed,provider:'groq',model:env.GROQ_MODEL}; 
+    } finally { clearTimeout(timeout); } 
+  } 
+  return {reply:'I am here with you. How can I support you today?',suggestedAction:'Talk to TAARA',provider:'fallback',model:'none'}; 
+}
 
 export async function analyzeText(input:{victimToken:string;text:string;language?:string}):Promise<MlResult>{ if(env.ML_SERVICE_URL){ try { const response=await fetch(`${env.ML_SERVICE_URL}/ml/analyze-text`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(input)}); if(!response.ok) return unavailable(input); return await response.json() as MlResult; } catch { return unavailable(input); } } if(env.AI_PROVIDER.toLowerCase()==='groq'&&env.AI_API_KEY) { try { return await groqAnalyze(input); } catch { return unavailable(input); } } return unavailable(input); }
 
