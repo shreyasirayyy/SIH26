@@ -23,7 +23,7 @@ export default function HopeVaultPage() {
   }, []);
 
   async function handleSave() {
-    if (!title.trim() || (!content.trim() && modal.type !== 'photo')) {
+    if (!title.trim() || !content.trim()) {
       setError("Title and content are required.");
       return;
     }

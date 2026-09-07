@@ -15,7 +15,10 @@ export default function NavigatorPage() {
   useEffect(() => {
     async function fetchResources() {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/api/v1/support/resources`);
+        const url = filter === "All" ? "/api/v1/support/resources" : `/api/v1/support/resources?category=${encodeURIComponent(filter)}`;
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}${url}`, {
+          headers: { Authorization: `Bearer ${window.localStorage.getItem("saath_access_token")}` }
+        });
         const data = await response.json();
         setResources(data.data || []);
       } catch (e) {
@@ -23,7 +26,7 @@ export default function NavigatorPage() {
       }
     }
     fetchResources();
-  }, [currentCase]);
+  }, [currentCase, filter]);
 
   const cats = ["All", "Counselling", "Medical", "Witness Protection", "Relocation", "Financial Assistance", "Legal Aid", "Rehabilitation"];
   const visible = resources.filter((resource) => filter === "All" || resource.serviceType === filter);
