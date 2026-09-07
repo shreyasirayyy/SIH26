@@ -131,7 +131,7 @@ export const aiService = {
     if (!latest) return null;
     try {
       const history = await this.getCheckInHistory();
-      if ((history ?? []).length < 2) latest.insufficientEvidence = true;
+      if (Array.isArray(history) && history.length < 2) latest.insufficientEvidence = true;
     } catch {
       // non-fatal
     }
