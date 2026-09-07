@@ -24,6 +24,7 @@ export default function CheckInPage() {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [showSafetyModal, setShowSafetyModal] = useState(false);
 
@@ -43,16 +44,21 @@ export default function CheckInPage() {
 
   async function finish(finalAnswers: Record<string, number>) {
     setSubmitting(true);
+    setError(null);
     try {
-      await aiService.analyzeCheckIn({
+      await aiService.submitMoodCheckIn({
         mood: finalAnswers.mood ?? 3,
         sleep: finalAnswers.sleep,
         fear: finalAnswers.fear,
         intrusion: finalAnswers.intrusion,
+        avoidance: finalAnswers.avoidance,
         perceivedSafety: finalAnswers.perceivedSafety,
         socialConnectedness: finalAnswers.socialConnectedness,
+        caseConcern: finalAnswers.caseConcern
       });
-    } catch {
+    } catch (e) {
+      console.error("Check-in submission error:", e);
+      setError("Failed to submit check-in. Please try again.");
       setSubmitting(false);
       return;
     }
@@ -86,7 +92,7 @@ export default function CheckInPage() {
         <p className="text-3xl">🌿</p>
         <h1 className="mt-4 text-lg font-semibold">{hindi ? "चेक-इन के लिए धन्यवाद" : "Thank you for checking in"}</h1>
         <p className="mt-2 text-text-secondary">
-          {hindi ? "यहाँ कोई सही या गलत जवाब नहीं है — आपका यहाँ होना ही काफ़ी है।" : "There&apos;s no right or wrong answer here — just showing up counts."}
+          {hindi ? "यहाँ कोई सही या गलत जवाब नहीं है — आपका यहाँ होना ही काफ़ी है।" : "There's no right or wrong answer here — just showing up counts."}
         </p>
         <Button className="mt-6 w-full" onClick={() => router.push("/survivor")}>
           {hindi ? "होम पर वापस जाएँ" : "Back to Home"}
@@ -148,6 +154,12 @@ export default function CheckInPage() {
           ))}
         </div>
       </Card>
+
+      {error && (
+        <p role="alert" className="text-sm text-warm-peach mb-4">
+          {error}
+        </p>
+      )}
 
       <p className="mt-6 text-xs text-center text-text-secondary">
         {hindi ? "छोड़ना ठीक है। यह हमेशा आपकी इच्छा से है।" : "Skipping is okay. This is voluntary, always."}

@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors'; import helmet from 'helmet'; import rateLimit from 'express-rate-limit'; import multer from 'multer';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod'; import { randomUUID } from 'node:crypto';
-import { corsOrigins, env } from './config/env.js'; import { store, id } from './db/store.js'; import { AppError, asyncRoute, fail, ok, requestId } from './utils/http.js'; import { normalizePhone, notificationProvider, getEscalatedMessage } from './services/notifications.js'; import { requireAuth, requireRoles, signUser, type AuthedRequest } from './middleware/auth.js'; import { analyzeText, analyzeVoice } from './services/ml.js'; import { respondToTaara } from './services/taara/index.js'; import { findEligibleCase, syncCaseStage } from './services/case/case.service.js';
+import { corsOrigins, env } from './config/env.js'; import { store, id, supabase, supabaseSelect, supabaseInsert } from './db/store.js'; import { AppError, asyncRoute, fail, ok, requestId } from './utils/http.js'; import { normalizePhone, notificationProvider, getEscalatedMessage } from './services/notifications.js'; import { requireAuth, requireRoles, signUser, type AuthedRequest } from './middleware/auth.js'; import { analyzeText, analyzeVoice } from './services/ml.js'; import { respondToTaara } from './services/taara/index.js'; import { findEligibleCase, syncCaseStage } from './services/case/case.service.js';
 
 const app=express(); app.use(helmet()); app.use(cors({origin:(origin,cb)=>!origin||corsOrigins.includes(origin)?cb(null,true):cb(new Error('CORS denied'))})); app.use(express.json({limit:'1mb'})); app.use(requestId); app.use(rateLimit({windowMs:60_000,max:120,standardHeaders:true,legacyHeaders:false}));
 const body=(schema:z.ZodTypeAny)=>(req:AuthedRequest,_res:express.Response,next:express.NextFunction)=>{const parsed=schema.safeParse(req.body); if(!parsed.success) return next(new AppError(400,'VALIDATION_ERROR','Request validation failed',parsed.error.flatten())); req.body=parsed.data; next();};
@@ -200,12 +200,78 @@ app.get('/api/v1/counsellor/cases/:id',requireAuth,requireRoles('COUNSELLOR'),as
 app.get('/api/v1/counsellor/cases/:id/:view',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req,res)=>{const c=store.cases.find(x=>x.id===req.params.id); if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); return ok(res,{case:c,view:String(req.params.view),timeline:store.timelines.filter(x=>x.caseId===c.id)});}));
 app.get('/api/v1/counsellor/voice-checkins',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(_req,res)=>{const items=[...store.records.entries()].flatMap(([key,values])=>values.filter((value:any)=>value.type==='voice').map((value:any)=>({id:value.id,submittedBy:key.replace('checkins:',''),victimToken:value.victimToken,createdAt:value.createdAt,analyticalState:value.analyticalState,transcript:value.transcript,analysis:value.ml}))); return ok(res,items)}));
 app.post('/api/v1/counsellor/:resource',requireAuth,requireRoles('COUNSELLOR'),body(z.record(z.unknown())),asyncRoute(async(req:AuthedRequest,res)=>ok(res,record(`counsellor:${req.params.resource}`,{id:id(),actor:req.user!.id,...req.body,createdAt:new Date().toISOString()}),201)));
-app.get('/api/v1/interventions/recommendations',requireAuth,asyncRoute(async(_req,res)=>ok(res,[{type:'breathing',label:'Breathing space'},{type:'grounding',label:'Grounding exercise'},{type:'listening',label:'Talk to a counsellor'},{type:'psychoeducation',label:'Understand what you are feeling'}])));
+import { getInterventionRecommendations } from './services/interventions.js';
+// ...existing code...
+app.get('/api/v1/interventions/recommendations', requireAuth, asyncRoute(async (req: AuthedRequest, res) => {
+  const caseId = (store.records.get(`user:${req.user!.id}:cases`) || [])[0];
+  const caseRecord = store.cases.find(c => c.id === caseId);
+  if (!caseRecord) {
+    return ok(res, [
+      { type: 'breathe', label: 'Breathing space', reason: 'A gentle rhythm to help your body soften.', priority: 3 },
+      { type: 'ground', label: 'Grounding exercise', reason: 'Notice what is around you.', priority: 3 },
+      { type: 'listening', label: 'Talk to a counsellor', reason: 'Soft audio spaces.', priority: 3 },
+      { type: 'psychoeducation', label: 'Understand what you are feeling', reason: 'Small, plain-language guides.', priority: 3 }
+    ]);
+  }
+  return ok(res, getInterventionRecommendations(caseRecord));
+}));
+// ...existing code...
 app.post('/api/v1/ai/recommend',requireAuth,body(z.object({context:z.string().optional()})),asyncRoute(async(_req,res)=>ok(res,[{type:'breathing',label:'Breathing space'},{type:'grounding',label:'Grounding exercise'},{type:'listening',label:'Talk to a counsellor'},{type:'psychoeducation',label:'Understand what you are feeling'}])));
 app.post('/api/v1/interventions',requireAuth,body(z.object({type:z.string(),caseId:z.string().optional(),metadata:z.record(z.unknown()).optional()})),asyncRoute(async(req:AuthedRequest,res)=>{const now=new Date().toISOString(); return ok(res,record(`interventions:${req.user!.id}`,{id:id(),...req.body,status:'RECOMMENDED',recommendedAt:now,createdAt:now}),201)}));
 app.post('/api/v1/interventions/:id/:action',requireAuth,body(z.object({}).passthrough()),asyncRoute(async(req:AuthedRequest,res)=>{const action=String(req.params.action); if(!['start','complete','skip'].includes(action)) throw new AppError(400,'INVALID_ACTION','Unsupported intervention action.'); const all=[...store.records.entries()].flatMap(([key, values])=>values.map((value:any)=>({key,value}))); const found=all.find(x=>x.key===`interventions:${req.user!.id}`&&x.value.id===req.params.id); if(!found) throw new AppError(404,'INTERVENTION_NOT_FOUND','Intervention not found.'); const now=new Date().toISOString(); Object.assign(found.value,action==='start'?{status:'STARTED',startedAt:now}:action==='complete'?{status:'COMPLETED',completedAt:now}:{status:'SKIPPED',skippedAt:now}); return ok(res,found.value);}));
 app.post('/api/v1/interventions/:id/feedback',requireAuth,body(z.object({completed:z.boolean(),rating:z.number().min(1).max(5).optional(),note:z.string().max(1000).optional()})),asyncRoute(async(req,res)=>{const payload={id:req.params.id,...req.body,completedAt:new Date().toISOString()}; if(!req.body.completed && req.body.rating && req.body.rating <= 2) recordAlert({victimToken:'unknown',caseReference:'counsellor-review',reason:'Low intervention rating requires counsellor follow-up.',source:'intervention',requestedSupport:true,confidence:0.6}); return ok(res,payload); }));
-app.get('/api/v1/hope-vault',requireAuth,asyncRoute(async(req:AuthedRequest,res)=>ok(res,store.records.get(`hope:${req.user!.id}`)||[]))); app.post('/api/v1/hope-vault',requireAuth,body(z.object({type:z.string(),title:z.string().max(200),content:z.string().max(10000)})),asyncRoute(async(req:AuthedRequest,res)=>ok(res,record(`hope:${req.user!.id}`,{id:id(),...req.body,createdAt:new Date().toISOString()}),201))); app.delete('/api/v1/hope-vault/:id',requireAuth,asyncRoute(async(req,res)=>ok(res,{deleted:req.params.id})));
+app.get('/api/v1/hope-vault', requireAuth, asyncRoute(async (req: AuthedRequest, res) => {
+  if (env.DATA_MODE === 'supabase' && supabase) {
+    const data = await supabaseSelect('hope_vault', { victim_token: req.user!.victimToken });
+    return ok(res, data);
+  }
+  return ok(res, store.records.get(`hope:${req.user!.id}`) || []);
+}));
+
+app.post('/api/v1/hope-vault', requireAuth, upload.single('photo'), asyncRoute(async (req: AuthedRequest, res) => {
+  const { type, title, content } = req.body;
+  const now = new Date().toISOString();
+  const itemData: any = { 
+    id: id(), 
+    victim_token: req.user!.victimToken, 
+    type, 
+    title, 
+    content, 
+    created_at: now 
+  };
+
+  if (type === 'photo' && req.file) {
+    if (env.DATA_MODE === 'supabase' && supabase) {
+      const { data, error } = await supabase.storage.from('hope-vault-photos').upload(`${req.user!.victimToken}/${id()}`, req.file.buffer, { contentType: req.file.mimetype });
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from('hope-vault-photos').getPublicUrl(data.path);
+      itemData.image_url = urlData.publicUrl;
+    } else {
+      itemData.image_url = `/uploads/${req.file.originalname}`;
+    }
+  }
+
+  if (env.DATA_MODE === 'supabase' && supabase) {
+    const data = await supabaseInsert('hope_vault', itemData);
+    return ok(res, data, 201);
+  }
+  
+  record(`hope:${req.user!.id}`, itemData);
+  return ok(res, itemData, 201);
+}));
+
+app.delete('/api/v1/hope-vault/:id', requireAuth, asyncRoute(async (req: AuthedRequest, res) => {
+  if (env.DATA_MODE === 'supabase' && supabase) {
+    const { error } = await supabase.from('hope_vault').delete().eq('id', req.params.id).eq('victim_token', req.user!.victimToken);
+    if (error) throw error;
+    return ok(res, { deleted: req.params.id });
+  }
+  const items = store.records.get(`hope:${req.user!.id}`) || [];
+  const index = items.findIndex((x: any) => x.id === req.params.id);
+  if (index === -1) throw new AppError(404, 'NOT_FOUND', 'Item not found.');
+  items.splice(index, 1);
+  return ok(res, { deleted: req.params.id });
+}));
 app.get('/api/v1/safe-circle',requireAuth,asyncRoute(async(req:AuthedRequest,res)=>ok(res,store.records.get(`safe:${req.user!.id}`)||[]))); app.post('/api/v1/safe-circle',requireAuth,body(z.object({name:z.string().min(1),phone:z.string().min(8),consentToContact:z.boolean()})),asyncRoute(async(req:AuthedRequest,res)=>ok(res,record(`safe:${req.user!.id}`,{id:id(),...req.body,phone:normalizePhone(req.body.phone)}),201))); app.patch('/api/v1/safe-circle/:id',requireAuth,body(z.record(z.unknown())),asyncRoute(async(req,res)=>ok(res,{id:req.params.id,...req.body}))); app.delete('/api/v1/safe-circle/:id',requireAuth,asyncRoute(async(req,res)=>ok(res,{deleted:req.params.id})));
 app.get('/api/v1/support/resources',asyncRoute(async(_req,res)=>ok(res,[{id:'resource-1',name:'Sakhi Counselling Centre',serviceType:'Counselling',state:'Rajasthan',district:'Jaipur',language:'English/Hindi',phone:'+9118000001122',availability:'Open today'}]))); app.get('/api/v1/support/resources/:id',asyncRoute(async(req,res)=>ok(res,{id:req.params.id})));
 app.get('/api/v1/community/posts',optionalCommunity,asyncRoute(async(_req,res)=>ok(res,store.records.get('community')||[]))); app.post('/api/v1/community/posts',requireAuth,body(z.object({body:z.string().min(1).max(5000),language:z.string().default('en')})),asyncRoute(async(req:AuthedRequest,res)=>ok(res,record('community',{id:id(),authorToken:req.user!.victimToken,body:req.body.body,moderationStatus:'pending',createdAt:new Date().toISOString()}),201))); app.post('/api/v1/community/posts/:id/report',requireAuth,body(z.object({reason:z.string().min(1).max(500)})),asyncRoute(async(req,res)=>ok(res,{reported:req.params.id,reason:req.body.reason},202)));
