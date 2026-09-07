@@ -1,5 +1,6 @@
 import { DEMO_TRAJECTORIES } from "@/data/demo/cases";
 import { AiOutput, CheckIn } from "@/types";
+import { EscalationEstimate } from "@/types/escalation";
 import { apiRequest } from "@/lib/api";
 
 // AI service abstraction. Demo implementations only — no real model calls.
@@ -72,5 +73,13 @@ export const aiService = {
   async getRecommendation(victimToken: string): Promise<string> {
     const latest = DEMO_TRAJECTORIES[victimToken]?.aiOutputs.at(-1);
     return delay(latest?.recommendedIntervention ?? "No recommendation available yet.", 200);
+  },
+
+  async getEscalationEstimate(victimToken: string): Promise<EscalationEstimate | null> {
+    try {
+      return await apiRequest<EscalationEstimate>(`/api/v1/cases/${encodeURIComponent(victimToken)}/escalation`);
+    } catch {
+      return null;
+    }
   },
 };
