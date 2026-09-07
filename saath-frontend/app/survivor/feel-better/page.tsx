@@ -10,14 +10,14 @@ const iconMap: Record<string, any> = { Wind, Leaf, Moon, Ear, Sparkles, BookOpen
 
 export default function FeelBetterPage() { 
   const { currentCase } = useAppStore();
-  const [recommended, setRecommended] = useState<string[]>([]);
+  const [recommendations, setRecommendations] = useState<any[]>([]);
 
   useEffect(() => {
     async function fetchPersonalization() {
       try {
         const recs = await aiService.getInterventionRecommendations();
         if (Array.isArray(recs)) {
-          setRecommended(recs.map((r: any) => r.type));
+          setRecommendations(recs);
         }
       } catch (e) {
         console.error("Personalization failed", e);
@@ -26,11 +26,10 @@ export default function FeelBetterPage() {
     fetchPersonalization();
   }, [currentCase]);
 
-  const sortedExercises = [...EXERCISE_LIBRARY].sort((a, b) => {
-    const aRec = recommended.includes(a.id) ? -1 : 1;
-    const bRec = recommended.includes(b.id) ? -1 : 1;
-    return aRec - bRec;
-  });
+  const sortedExercises = [...EXERCISE_LIBRARY].map((ex: any) => {
+    const rec = recommendations.find((r: any) => r.type === ex.id);
+    return { ...ex, priority: rec ? rec.priority : 99, reason: rec ? rec.reason : "" };
+  }).sort((a: any, b: any) => a.priority - b.priority);
 
   return (
     <div className="px-5 pb-10 md:px-10 xl:px-14">
@@ -43,14 +42,15 @@ export default function FeelBetterPage() {
       <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {sortedExercises.map((exercise) => {
           const Icon = iconMap[exercise.icon];
-          const isRecommended = recommended.includes(exercise.id);
+          const isRecommended = exercise.priority < 3;
           return (
             <Link href={exercise.href} key={exercise.id} className={`surface group rounded-[26px] p-6 hover:-translate-y-1 hover:shadow-xl ${isRecommended ? 'border-2 border-deep-teal' : ''}`}>
               <div className="flex items-start justify-between">
                 <span className={`flex h-12 w-12 items-center justify-center rounded-2xl ${exercise.tone}`}><Icon size={22} /></span>
                 <ArrowRight size={18} className="text-[#9aaba4] transition-transform group-hover:translate-x-1" />
               </div>
-              <h2 className="mt-7 font-display text-2xl text-[#243630]">{exercise.title} {isRecommended && <span className="text-xs text-deep-teal ml-2">(Recommended)</span>}</h2>
+              <h2 className="mt-7 font-display text-2xl text-[#243630]">{exercise.title}</h2>
+              {isRecommended && <p className="text-xs font-bold text-deep-teal mt-1">{exercise.reason}</p>}
               <p className="mt-2 min-h-12 text-sm leading-relaxed text-[#6b7b75]">{exercise.desc}</p>
               <div className="mt-5 flex items-center gap-2 text-xs font-bold text-[#0f766e]"><Play size={13} /> {exercise.time}</div>
             </Link>
