@@ -3,20 +3,44 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## Getting Started
 
-On CLI, first run:
+The backend needs to be run first:
+```bash
+cd saath-backend
+```
+
+```bash
+npm install @supabase/server
+```
+
+```bash
+npm install
+```
+
+```bash
+npm run build
+```
+
+To check if the backend fails or passes, run:
+```bash
+npm test
+```
+
+```bash
+npm run dev
+```
+Confirmation message - "saath backend listening" will be visible
+
+For starting FRONTEND, on CLI run:
+```bash
+cd saath-frontend
+```
+once youre inside the frontend folder, run:
 ```bash
 npm install
 ```
 then run:
-
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
