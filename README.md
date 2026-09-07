@@ -20,10 +20,11 @@ npm install
 npm run build
 ```
 
-To check if the backend fails or passes, run:
+To check if the backend can be run, run:
 ```bash
 npm test
 ```
+it either fails or passes. next-
 
 ```bash
 npm run dev
