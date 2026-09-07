@@ -4,7 +4,7 @@ export type MonitoringState = 'active'|'paused'|'stopped';
 export type Priority = 'P1'|'P2'|'P3'|'P4';
 export interface AuthUser { id: string; role: Role; victimToken?: string; district?: string; state?: string; jti?: string; }
 export interface CaseRecord {
-  city: any; 
+  city?: any; 
   id: string; 
   docket: string; 
   victimToken: string; 
@@ -31,11 +31,11 @@ export interface CaseRecord {
   rehabilitationStatus: string; 
   counsellorAssigned?: string; 
   preferredLanguage: string;
-  firDate?: string;
-  firNumber?: string;
+  firDate?: string | null;
+  firNumber?: string | null;
   investigatingOfficerId?: string;
   pendingAmount?: number;
-  threatLastReported?: string;
+  threatLastReported?: string | null;
   protectionOfficerAssigned?: boolean;
   monitoringStarted?: string;
   baselineDistressScore?: number;
