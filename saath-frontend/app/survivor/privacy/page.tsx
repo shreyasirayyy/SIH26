@@ -17,6 +17,10 @@ async function updateMonitoring(action: "pause" | "resume" | "stop") {
 }
 
 function setMonitoring(nextState: "active" | "paused" | "stopped") {
+  if (nextState !== "active" && monitoring === nextState) {
+    void updateMonitoring("resume");
+    return;
+  }
   void updateMonitoring(nextState === "paused" ? "pause" : nextState === "stopped" ? "stop" : "resume");
 }
 
