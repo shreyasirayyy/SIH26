@@ -18,23 +18,49 @@ const STAGES = [
 ];
 
 export default function MyCasePage() {
-  const { victimToken, monitoring, setMonitoring } = useAppStore();
+  const { victimToken, currentCase, monitoring, setMonitoring } = useAppStore();
   const [caseRecord, setCaseRecord] = useState<CaseRecord | null>(null);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!victimToken) return;
-    caseService.getCase(victimToken).then((c) => {
-      console.log("Case Record:", c);
-      setCaseRecord(c);
-    });
-    caseService.getTimeline(victimToken).then((t) => {
-      console.log("Timeline:", t);
-      setTimeline(t);
-    });
-  }, [victimToken]);
+    if (!victimToken) {
+      if (currentCase) setCaseRecord(currentCase);
+      setLoading(false);
+      setError(currentCase ? null : "Connect your case to view its details.");
+      return;
+    }
 
-  if (!caseRecord) return <div className="px-6 py-8 text-text-secondary">Loading...</div>;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    Promise.all([caseService.getCase(victimToken), caseService.getTimeline(victimToken)])
+      .then(([record, events]) => {
+        if (cancelled) return;
+        if (!record) {
+          setCaseRecord(currentCase);
+          setError("We could not load your case details. Please try again.");
+          return;
+        }
+        setCaseRecord(record);
+        setTimeline(events);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setCaseRecord(currentCase);
+          setError("We could not load your case details. Please try again.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [currentCase, victimToken]);
+
+  if (loading) return <div className="px-6 py-8 text-text-secondary">Loading your case...</div>;
+  if (!caseRecord) return <div className="px-6 py-8 text-text-secondary">{error}</div>;
 
   const stageIndex = STAGES.findIndex(s => s.id === caseRecord.currentStage);
 
