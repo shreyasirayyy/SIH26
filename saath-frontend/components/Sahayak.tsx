@@ -8,7 +8,9 @@ import { useAppStore } from "@/store/useAppStore";
 export function Sahayak() {
   const { currentCase } = useAppStore();
   const [message, setMessage] = useState("");
-  const [reply, setReply] = useState("Hi, I am Sahayak. I am here to listen to what has been happening with your case and daily life.");
+  const [conversation, setConversation] = useState<Array<{ role: "user" | "assistant"; text: string }>>([
+    { role: "assistant", text: "Hi, I am Sahayak. I am here to listen. How have things been with your case or your day?" },
+  ]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,8 +21,8 @@ export function Sahayak() {
     setLoading(true);
     setError(null);
     try {
-      const result = await aiService.getSahayakPrediction(text, currentCase?.id);
-      setReply(result.reply);
+      const result = await aiService.getSahayakPrediction(text, currentCase?.id, conversation);
+      setConversation((items) => [...items, { role: "user", text }, { role: "assistant", text: result.reply }]);
       setMessage("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Sahayak is temporarily unavailable.");
@@ -45,7 +47,7 @@ export function Sahayak() {
         </form>
         {loading && <p className="mt-3 text-xs text-[#63736e]">Sahayak is checking your recent signals...</p>}
         {error && <p role="alert" className="mt-3 text-xs text-[#a15f4e]">{error}</p>}
-        <div className="mt-4 flex gap-3 rounded-2xl bg-[#f7faf5] p-4"><MessageCircle size={17} className="mt-0.5 shrink-0 text-[#0f766e]" /><p className="text-sm leading-relaxed text-[#526b63]">{reply}</p></div>
+        <div className="mt-4 max-h-40 space-y-2 overflow-y-auto pr-1">{conversation.slice(-4).map((item, index) => <div key={`${item.role}-${index}`} className={`flex gap-3 rounded-2xl p-3 ${item.role === "assistant" ? "bg-[#f7faf5]" : "ml-5 bg-[#eaf5ef]"}`}><MessageCircle size={17} className="mt-0.5 shrink-0 text-[#0f766e]" /><p className="text-sm leading-relaxed text-[#526b63]">{item.text}</p></div>)}</div>
       </div>
     </section>
   );
