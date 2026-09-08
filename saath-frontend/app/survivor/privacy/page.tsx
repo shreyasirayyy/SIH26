@@ -1,8 +1,24 @@
 "use client";
 import { useState } from "react";
 import { Check, Download, Eye, LockKeyhole, Pause, ShieldCheck, Square } from "lucide-react";
+import { apiRequest } from "@/lib/api";
 import { useAppStore } from "@/store/useAppStore";
-export default function PrivacyPage() { const { monitoring, setMonitoring } = useAppStore(); const [message, setMessage] = useState(""); const [downloading, setDownloading] = useState(false);
+export default function PrivacyPage() { const { monitoring, setMonitoring: setStoreMonitoring } = useAppStore(); const [message, setMessage] = useState(""); const [downloading, setDownloading] = useState(false);
+
+async function updateMonitoring(action: "pause" | "resume" | "stop") {
+  try {
+    await apiRequest(`/api/v1/monitoring/${action}`, { method: "POST", body: JSON.stringify({}) });
+    const nextState = action === "pause" ? "paused" : action === "stop" ? "stopped" : "active";
+    setStoreMonitoring(nextState);
+    setMessage(`Monitoring ${nextState}. Support remains available.`);
+  } catch {
+    setMessage("We could not update monitoring. Please try again.");
+  }
+}
+
+function setMonitoring(nextState: "active" | "paused" | "stopped") {
+  void updateMonitoring(nextState === "paused" ? "pause" : nextState === "stopped" ? "stop" : "resume");
+}
 
 async function downloadData() {
   setDownloading(true);
