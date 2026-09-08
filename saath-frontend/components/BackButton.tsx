@@ -3,11 +3,29 @@
 import { ArrowLeft } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 
+const HIDDEN_ON = [
+  "/survivor",
+  "/welcome",
+  "/survivor/breathe",
+  "/survivor/ground",
+  "/survivor/just-stay",
+  "/survivor/listen",
+  "/survivor/relax",
+  "/survivor/understand",
+  "/survivor/support/community",
+  "/survivor/support/counsellor",
+  "/survivor/support/navigator",
+  "/survivor/support/safe-circle",
+  "/survivor/check-in/voice",
+  "/survivor/check-in/ivrs",
+  "/survivor/accessibility",
+];
+
 export function BackButton() {
   const pathname = usePathname();
   const router = useRouter();
 
-  if (pathname === "/survivor" || pathname === "/welcome") return null;
+  if (HIDDEN_ON.some((p) => pathname === p || pathname.startsWith(p + "/"))) return null;
 
   return (
     <button

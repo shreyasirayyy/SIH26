@@ -1,4 +1,5 @@
 import { AiOutput, CheckIn, InterventionFeedback } from "@/types";
+import { EscalationEstimate } from "@/types/escalation";
 import { apiRequest } from "@/lib/api";
 
 export const aiService = {
@@ -227,5 +228,13 @@ export const aiService = {
       method: "POST",
       body: JSON.stringify(payload),
     });
+  },
+
+  async getEscalationEstimate(victimToken: string): Promise<EscalationEstimate | null> {
+    try {
+      return await apiRequest<EscalationEstimate>(`/api/v1/cases/${encodeURIComponent(victimToken)}/escalation`);
+    } catch {
+      return null;
+    }
   },
 };

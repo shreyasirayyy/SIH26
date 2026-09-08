@@ -7,8 +7,48 @@ import { Badge } from "@/components/ui/Badge";
 import { caseService } from "@/services/case";
 import { aiService } from "@/services/ai";
 import { CaseRecord, AiOutput, CheckIn, TimelineEvent } from "@/types";
+import { EscalationEstimate } from "@/types/escalation";
 import { formatDate } from "@/lib/utils";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
+
+// Lightweight client-side baseline approximation for demo purposes.
+// The real "personal baseline" (rolling mean/stddev, persisted per survivor)
+// is computed server-side; this just gives counsellors a visual sense of it
+// using the check-ins already loaded on this page.
+// NOTE: this is intentionally counsellor-only. We do not show baseline
+// comparisons to the survivor — comparing them against "past them" is not
+// something we want to surface on their side of the product.
+const BASELINE_DIMENSIONS: { key: keyof CheckIn; label: string; higherIsWorse: boolean }[] = [
+  { key: "sleep", label: "Sleep difficulty", higherIsWorse: true },
+  { key: "intrusion", label: "Intrusive memories", higherIsWorse: true },
+  { key: "avoidance", label: "Avoidance", higherIsWorse: true },
+  { key: "socialConnectedness", label: "Social engagement", higherIsWorse: false },
+];
+
+function average(nums: number[]) {
+  return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
+}
+
+function computeBaselineComparison(checkIns: CheckIn[]) {
+  if (checkIns.length < 4) return null; // not enough data to compare periods yet
+  const splitPoint = Math.max(2, Math.floor(checkIns.length / 2));
+  const baselineWindow = checkIns.slice(0, splitPoint);
+  const recentWindow = checkIns.slice(-splitPoint);
+
+  return BASELINE_DIMENSIONS.map(({ key, label, higherIsWorse }) => {
+    const baselineAvg = average(baselineWindow.map((c) => Number(c[key])));
+    const recentAvg = average(recentWindow.map((c) => Number(c[key])));
+    if (baselineAvg === null || recentAvg === null) return { label, direction: "flat" as const, baselineAvg, recentAvg };
+    const diff = recentAvg - baselineAvg;
+    const THRESHOLD = 0.4; // demo threshold on a 1-5 scale
+    let direction: "worse" | "better" | "flat" = "flat";
+    if (Math.abs(diff) >= THRESHOLD) {
+      const rose = diff > 0;
+      direction = rose === higherIsWorse ? "worse" : "better";
+    }
+    return { label, direction, baselineAvg, recentAvg };
+  });
+}
 
 export default function CounsellorCaseDetailPage() {
   const params = useParams<{ id: string }>();
@@ -18,16 +58,23 @@ export default function CounsellorCaseDetailPage() {
   const [aiOutputs, setAiOutputs] = useState<AiOutput[]>([]);
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+  const [escalation, setEscalation] = useState<EscalationEstimate | null>(null);
 
   useEffect(() => {
     caseService.getCase(victimToken).then(setCaseRecord);
     aiService.getDistressTrajectory(victimToken).then(setAiOutputs);
-    aiService.getCheckInHistory(victimToken).then(setCheckIns);
+    aiService.getCheckInHistory().then((history) => setCheckIns(history as CheckIn[]));
     caseService.getTimeline(victimToken).then(setTimeline);
+    aiService.getEscalationEstimate(victimToken).then(setEscalation);
   }, [victimToken]);
 
   const latest = aiOutputs.at(-1);
   const chartData = aiOutputs.map((a) => ({ date: a.timestamp.slice(5), distress: a.distressScore, recovery: a.recoveryScore }));
+  const baselineComparison = computeBaselineComparison(checkIns);
+  const baselineDistressAvg =
+    aiOutputs.length >= 4
+      ? average(aiOutputs.slice(0, Math.max(2, Math.floor(aiOutputs.length / 2))).map((a) => a.distressScore))
+      : null;
 
   if (!caseRecord) return <p className="text-text-secondary">Loading...</p>;
 
@@ -59,6 +106,22 @@ export default function CounsellorCaseDetailPage() {
         </Card>
       )}
 
+      {escalation?.status === "available" && escalation.result && (
+        <Card className="border-amber/40 bg-amber/10">
+          <CardTitle>AI-generated escalation risk estimate</CardTitle>
+          <div className="mt-3 grid grid-cols-2 gap-y-2 text-sm">
+            <span className="text-text-secondary">Risk level</span>
+            <Badge tone="amber">{escalation.result.risk_level}</Badge>
+            <span className="text-text-secondary">Probability within 7 days</span>
+            <span className="text-right font-medium">{escalation.result.escalation_probability}%</span>
+            <span className="text-text-secondary">Confidence</span>
+            <span className="text-right font-medium">{Math.round(escalation.result.confidence * 100)}%</span>
+          </div>
+          <p className="mt-3 text-sm">{escalation.result.recommended_followup}</p>
+          <p className="mt-2 text-xs text-text-secondary">For authorised human review only. This is a prototype estimate, not a clinical diagnosis or autonomous decision.</p>
+        </Card>
+      )}
+
       <Card>
         <CardTitle>Distress &amp; Recovery Trajectory</CardTitle>
         <div className="mt-3 h-64">
@@ -68,11 +131,42 @@ export default function CounsellorCaseDetailPage() {
               <XAxis dataKey="date" fontSize={12} stroke="#46565A" />
               <YAxis fontSize={12} stroke="#46565A" domain={[0, 100]} />
               <Tooltip />
+              {baselineDistressAvg !== null && (
+                <ReferenceLine
+                  y={baselineDistressAvg}
+                  stroke="#8a9b94"
+                  strokeDasharray="4 4"
+                  label={{ value: "Personal baseline", position: "insideTopLeft", fontSize: 11, fill: "#8a9b94" }}
+                />
+              )}
               <Line type="monotone" dataKey="distress" stroke="#E89A78" strokeWidth={2} name="Distress" dot={false} />
               <Line type="monotone" dataKey="recovery" stroke="#0F766E" strokeWidth={2} name="Recovery" dot={false} />
             </LineChart>
           </ResponsiveContainer>
         </div>
+      </Card>
+
+      <Card>
+        <CardTitle>Compared with personal baseline</CardTitle>
+        {baselineComparison ? (
+          <>
+            <p className="mt-1 text-xs text-text-secondary">
+              Comparing this survivor&apos;s earlier check-ins against their most recent ones — not against a universal norm.
+            </p>
+            <div className="mt-3 space-y-2">
+              {baselineComparison.map((row) => (
+                <div key={row.label} className="flex items-center justify-between text-sm">
+                  <span className="text-text-secondary">{row.label}</span>
+                  {row.direction === "worse" && <Badge tone="amber">↑ Above baseline</Badge>}
+                  {row.direction === "better" && <Badge tone="teal">↓ Below baseline (improving)</Badge>}
+                  {row.direction === "flat" && <Badge tone="neutral">≈ Within baseline</Badge>}
+                </div>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="mt-2 text-sm text-text-secondary">Not enough check-ins yet to compare against a personal baseline.</p>
+        )}
       </Card>
 
       <Card>

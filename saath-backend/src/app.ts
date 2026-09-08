@@ -3,7 +3,7 @@ import cors from 'cors'; import helmet from 'helmet'; import rateLimit from 'exp
 import jwt from 'jsonwebtoken';
 import { z } from 'zod'; import { randomUUID } from 'node:crypto';
 import { corsOrigins, env } from './config/env.js'; import { store, id, supabase, supabaseSelect, supabaseInsert } from './db/store.js'; import { AppError, asyncRoute, fail, ok, requestId } from './utils/http.js'; import { normalizePhone, notificationProvider, getEscalatedMessage } from './services/notifications.js';
-import { getEscalatedMessage as getEscalatedReminder, nextEscalationStage } from './services/escalation.js'; import { requireAuth, requireRoles, signUser, type AuthedRequest } from './middleware/auth.js'; import { analyzeText, analyzeVoice } from './services/ml.js'; import { respondToTaara } from './services/taara/index.js'; import { findEligibleCase, syncCaseStage } from './services/case/case.service.js';
+import { generateEscalation, getEscalatedMessage as getEscalatedReminder, nextEscalationStage } from './services/escalation.js'; import { requireAuth, requireRoles, signUser, type AuthedRequest } from './middleware/auth.js'; import { analyzeText, analyzeVoice } from './services/ml.js'; import { respondToTaara } from './services/taara/index.js'; import { findEligibleCase, syncCaseStage } from './services/case/case.service.js';
 import { trackCheckinCompletion, trackFollowUpResponse, computeEngagementTrend } from './services/engagement.js';
 import { recomputeBaseline, generateDistressScore, generateRecoveryScore } from './services/distress-engine.js';
 import { logCrisisEvent, updateCrisisEventOutcome, computeCrisisResponseMetrics, buildConversationLogEntry, minimize, MINIMIZATION_SCHEMA, type CrisisAuditEntry } from './services/audit-policy.js';
@@ -131,6 +131,14 @@ app.get('/api/v1/cases/:id',requireAuth,asyncRoute(async(req:AuthedRequest,res)=
   if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); 
   if(req.user!.role==='SURVIVOR'&&req.user!.victimToken!==c.victimToken&&!(store.records.get(`user:${req.user!.id}:cases`)||[]).includes(c.id)) throw new AppError(403,'FORBIDDEN','You can only access your own case.'); 
   return ok(res, c);
+}));
+app.get('/api/v1/cases/:id/escalation',requireAuth,requireRoles('COUNSELLOR','DISTRICT_ADMIN','STATE_ADMIN','NATIONAL_ADMIN'),asyncRoute(async(req,res)=>{
+  const c=store.cases.find(x=>x.id===req.params.id||x.victimToken===req.params.id||x.docket===req.params.id);
+  if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.');
+  const linkedUser=[...store.users.entries()].find(([,user])=>user?.victimToken===c.victimToken)?.[0];
+  const userEntry=linkedUser?`checkins:${linkedUser}`:[...store.records.entries()].find(([key,values])=>key.startsWith('checkins:')&&values.some((value:any)=>value.victimToken===c.victimToken))?.[0];
+  const userId=userEntry?.replace('checkins:','');
+  return ok(res,userId?await generateEscalation(userId,c.victimToken):null);
 }));
 app.get('/api/v1/cases/:id/timeline', requireAuth, asyncRoute(async (req: AuthedRequest, res) => {
   const caseId = req.params.id;
