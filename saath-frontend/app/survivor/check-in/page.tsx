@@ -24,7 +24,9 @@ export default function CheckInPage() {
   const [step, setStep] = useState(0);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const [showSafetyModal, setShowSafetyModal] = useState(false);
 
   const hindi = language === "Hindi";
   const questions = docket ? [["caseConcern", "How are you feeling about your case or next hearing?", "आप अपने केस या अगली सुनवाई को लेकर कैसा महसूस कर रहे हैं?"] as const, ...GENERIC_QUESTIONS] : GENERIC_QUESTIONS;
@@ -42,20 +44,45 @@ export default function CheckInPage() {
 
   async function finish(finalAnswers: Record<string, number>) {
     setSubmitting(true);
+    setError(null);
     try {
-      await aiService.analyzeCheckIn({
+      await aiService.submitMoodCheckIn({
         mood: finalAnswers.mood ?? 3,
         sleep: finalAnswers.sleep,
         fear: finalAnswers.fear,
         intrusion: finalAnswers.intrusion,
+        avoidance: finalAnswers.avoidance,
         perceivedSafety: finalAnswers.perceivedSafety,
         socialConnectedness: finalAnswers.socialConnectedness,
+        caseConcern: finalAnswers.caseConcern
       });
-    } catch {
+    } catch (e) {
+      console.error("Check-in submission error:", e);
+      setError("Failed to submit check-in. Please try again.");
       setSubmitting(false);
       return;
     }
     setSubmitting(false);
+    // Crisis / safety escalation: if perceivedSafety is at lowest value, surface gentle interstitial
+    const triggered = finalAnswers.perceivedSafety === 1;
+    if (triggered) {
+      setShowSafetyModal(true);
+      return;
+    }
+    setDone(true);
+  }
+
+  async function escalateToCounsellor() {
+    const docket = useAppStore.getState().docket;
+    const survivorName = useAppStore.getState().survivorName ?? "Unknown";
+    // create a P1 alert so counsellors can see it in their queue (backend stub)
+    try {
+      await aiService.createSafetyAlert({ level: "P1", title: "Immediate safety check-in", caseName: survivorName, docket: docket ?? undefined, reason: "Perceived safety reported as lowest", confidence: "High", lastContact: "Just now" });
+    } catch (e) {
+      // TODO: handle/report backend failure; keep UX gentle
+      console.error(e);
+    }
+    setShowSafetyModal(false);
     setDone(true);
   }
 
@@ -65,11 +92,31 @@ export default function CheckInPage() {
         <p className="text-3xl">🌿</p>
         <h1 className="mt-4 text-lg font-semibold">{hindi ? "चेक-इन के लिए धन्यवाद" : "Thank you for checking in"}</h1>
         <p className="mt-2 text-text-secondary">
-          {hindi ? "यहाँ कोई सही या गलत जवाब नहीं है — आपका यहाँ होना ही काफ़ी है।" : "There&apos;s no right or wrong answer here — just showing up counts."}
+          {hindi ? "यहाँ कोई सही या गलत जवाब नहीं है — आपका यहाँ होना ही काफ़ी है।" : "There's no right or wrong answer here — just showing up counts."}
         </p>
         <Button className="mt-6 w-full" onClick={() => router.push("/survivor")}>
           {hindi ? "होम पर वापस जाएँ" : "Back to Home"}
         </Button>
+      </div>
+    );
+  }
+
+  // Safety interstitial
+  if (showSafetyModal) {
+    const helpline = "+91-0000000000"; // TODO: replace with real helpline from config
+    const counsellorContact = "+91-9876543210"; // TODO: fetch assigned counsellor contact from case data
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-white p-6">
+        <div className="max-w-xl rounded-2xl border border-border-color bg-white p-6">
+          <h2 className="font-display text-2xl">You’re not alone.</h2>
+          <p className="mt-3 text-sm text-text-secondary">If you’re feeling unsafe right now, you can call a helpline or reach your counsellor directly. We can also let a counsellor know right away.</p>
+          <div className="mt-6 flex flex-col gap-3">
+            <a className="inline-flex items-center justify-center rounded-full bg-warm-peach px-4 py-3 text-center font-semibold text-white" href={`tel:${helpline}`}>Call helpline</a>
+            <a className="inline-flex items-center justify-center rounded-full bg-deep-teal px-4 py-3 text-center font-semibold text-white" href={`tel:${counsellorContact}`}>Call assigned counsellor</a>
+            <button onClick={() => void escalateToCounsellor()} className="rounded-full bg-[#a15f4e] px-4 py-3 text-white font-semibold">Connect to counsellor now</button>
+            <a className="mt-2 text-center text-sm text-text-secondary" href="/survivor/just-stay">Continue to Just Stay</a>
+          </div>
+        </div>
       </div>
     );
   }
@@ -80,7 +127,7 @@ export default function CheckInPage() {
         <span className="rounded-xl bg-[#0f766e] px-4 py-2 text-xs font-bold text-white">{hindi ? "टेक्स्ट" : "Text"}</span>
         <a href="/survivor/check-in/voice" className="rounded-xl px-4 py-2 text-xs font-bold text-[#60706a] hover:bg-white">{hindi ? "आवाज़" : "Voice"}</a>
         <a href="/survivor/check-in/ivrs" className="rounded-xl px-4 py-2 text-xs font-bold text-[#60706a] hover:bg-white">IVRS</a>
-        <a href="/survivor/notifications" className="rounded-xl px-4 py-2 text-xs font-bold text-[#60706a] hover:bg-white">{hindi ? "SMS सूचनाएँ" : "SMS reminders"}</a>
+        <a href="/survivor/check-in/sms-reminders" className="rounded-xl px-4 py-2 text-xs font-bold text-[#60706a] hover:bg-white">{hindi ? "SMS सूचनाएँ" : "SMS reminders"}</a>
       </div>
       <div className="flex items-center gap-1.5 mb-6">
         {questions.map((_, i) => (
@@ -107,6 +154,12 @@ export default function CheckInPage() {
           ))}
         </div>
       </Card>
+
+      {error && (
+        <p role="alert" className="text-sm text-warm-peach mb-4">
+          {error}
+        </p>
+      )}
 
       <p className="mt-6 text-xs text-center text-text-secondary">
         {hindi ? "छोड़ना ठीक है। यह हमेशा आपकी इच्छा से है।" : "Skipping is okay. This is voluntary, always."}

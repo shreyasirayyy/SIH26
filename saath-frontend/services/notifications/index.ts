@@ -5,6 +5,10 @@ export const notificationService = {
     return apiRequest("/api/v1/notifications");
   },
 
+  async markRead(id: string) {
+    return apiRequest(`/api/v1/notifications/${encodeURIComponent(id)}/read`, { method: "PATCH" });
+  },
+
   async sendSMS(phone: string, message: string): Promise<{ status: string; channel: string }> {
     return apiRequest("/api/v1/notifications/sms", {
       method: "POST",

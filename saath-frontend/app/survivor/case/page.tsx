@@ -9,7 +9,13 @@ import { caseService } from "@/services/case";
 import { CaseRecord, TimelineEvent } from "@/types";
 import { formatDate } from "@/lib/utils";
 
-const STAGES = ["Registered", "Investigation", "Trial", "Compensation", "Rehabilitation"];
+const STAGES = [
+  { id: "Registered", label: "Registered" },
+  { id: "Investigation", label: "Investigation" },
+  { id: "Trial", label: "Trial" },
+  { id: "Compensation", label: "Compensation" },
+  { id: "Rehabilitation", label: "Rehabilitation" }
+];
 
 export default function MyCasePage() {
   const { victimToken, monitoring, setMonitoring } = useAppStore();
@@ -18,13 +24,19 @@ export default function MyCasePage() {
 
   useEffect(() => {
     if (!victimToken) return;
-    caseService.getCase(victimToken).then(setCaseRecord);
-    caseService.getTimeline(victimToken).then(setTimeline);
+    caseService.getCase(victimToken).then((c) => {
+      console.log("Case Record:", c);
+      setCaseRecord(c);
+    });
+    caseService.getTimeline(victimToken).then((t) => {
+      console.log("Timeline:", t);
+      setTimeline(t);
+    });
   }, [victimToken]);
 
   if (!caseRecord) return <div className="px-6 py-8 text-text-secondary">Loading...</div>;
 
-  const stageIndex = STAGES.indexOf(caseRecord.currentStage);
+  const stageIndex = STAGES.findIndex(s => s.id === caseRecord.currentStage);
 
   return (
     <div className="px-6 py-8 space-y-6">
@@ -37,7 +49,7 @@ export default function MyCasePage() {
         <CardTitle>Timeline</CardTitle>
         <div className="mt-4 space-y-0">
           {STAGES.map((stage, i) => (
-            <div key={stage} className="flex gap-3">
+            <div key={stage.id} className="flex gap-3">
               <div className="flex flex-col items-center">
                 <div
                   className={`h-3 w-3 rounded-full ${
@@ -46,9 +58,16 @@ export default function MyCasePage() {
                 />
                 {i < STAGES.length - 1 && <div className="w-px flex-1 bg-border-color" />}
               </div>
-              <p className={`pb-5 text-sm ${i === stageIndex ? "font-semibold" : "text-text-secondary"}`}>
-                {stage} {i === stageIndex && "· Current"}
-              </p>
+              <div className="pb-5">
+                <p className={`text-sm ${i === stageIndex ? "font-semibold" : "text-text-secondary"}`}>
+                  {stage.label} {i === stageIndex && "· Current"}
+                </p>
+                {i === stageIndex && (
+                  <p className="text-xs text-text-secondary mt-1">
+                    {caseRecord.investigationStatus || caseRecord.rehabilitationStatus || "In progress"}
+                  </p>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -56,12 +75,12 @@ export default function MyCasePage() {
 
       <Card className="space-y-2">
         <CardTitle>Case Details</CardTitle>
-        <Row label="Registered" value={formatDate(caseRecord.registrationDate)} />
-        <Row label="Next milestone" value={caseRecord.nextHearingDate ? formatDate(caseRecord.nextHearingDate) : "—"} />
-        <Row label="Protection" value={caseRecord.protectionStatus} />
-        <Row label="Compensation" value={caseRecord.compensationStatus} />
-        <Row label="Legal aid" value={caseRecord.legalAidStatus} />
-        <Row label="Support" value={`Counsellor: ${caseRecord.counsellorAssigned}`} />
+        <Row label="Registered" value={caseRecord.registrationDate ? formatDate(caseRecord.registrationDate) : "Not available"} />
+        <Row label="Next milestone" value={caseRecord.nextHearingDate ? formatDate(caseRecord.nextHearingDate) : "No upcoming hearings"} />
+        <Row label="Protection" value={caseRecord.protectionStatus || "Not requested"} />
+        <Row label="Compensation" value={caseRecord.compensationStatus || "Not assessed"} />
+        <Row label="Legal aid" value={caseRecord.legalAidStatus || "Not connected"} />
+        <Row label="Support" value={caseRecord.counsellorAssigned === "assigned" ? "Counsellor assigned" : "Not yet assigned"} />
       </Card>
 
       {timeline.length > 0 && (
@@ -113,9 +132,9 @@ export default function MyCasePage() {
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between text-sm">
-      <span className="text-text-secondary">{label}</span>
-      <span className="font-medium">{value}</span>
+    <div className="flex justify-between py-2 border-b border-border-color last:border-0">
+      <span className="text-sm text-text-secondary">{label}</span>
+      <span className="text-sm font-medium text-text-primary">{value}</span>
     </div>
   );
 }

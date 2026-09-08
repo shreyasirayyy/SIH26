@@ -6,11 +6,8 @@ Statuses below describe current evidence, not intent. `DONE` is used only where 
 
 | ID | Feature | Current Status | Evidence | Missing Work | Dependency | Priority |
 |---|---|---|---|---|---|---|
-| A01-A05 | Survivor onboarding, welcome, docket, registered mobile | PARTIALLY DONE | Screens and demo docket/mobile exist; case service validates a docket locally | Remove demo fallback and connect authenticated case flow | Real frontend API integration | P0 |
-| A06 | REAL OTP request | BLOCKED | Backend endpoint now always generates a secure random challenge and calls provider abstraction | Configure and verify Twilio-compatible SMS delivery | SMS credentials | P0 |
-| A07 | REAL OTP verification | PARTIALLY DONE | JWT session is issued after challenge verification | Enforce challenge phone match and verify through real delivery | A06 | P0 |
-| A08-A11 | OTP expiry, resend, attempts, rate limiting | PARTIALLY DONE | Expiry, cooldown, max attempts, and global rate limiter exist in memory | Persist challenges and add per-phone/IP limits and tests | Supabase/repository | P0 |
-| A12 | SMS provider integration | BLOCKED | Twilio adapter exists; provider defaults to console | Configure credentials and perform real delivery test | Twilio account | P0 |
+| A01-A05 | Survivor onboarding and docket access | PARTIALLY DONE | Active flow validates an exact synthetic docket and issues a JWT session | Persist identity/case linkage in Supabase and expand frontend flow tests | Supabase/repository | P0 |
+| A06-A12 | OTP and phone authentication | REMOVED | No active OTP route, service, table, environment variable, or screen | Do not restore; phone remains limited to explicit notifications/support workflows | None | CLOSED |
 | A13-A16 | Session, refresh, logout, route protection | PARTIALLY DONE | JWT bearer token and protected backend routes exist | Refresh/revocation/logout and frontend protected navigation | Auth/session design | P0 |
 | A17-A18 | Synthetic case dataset/adapter | PARTIALLY DONE | Synthetic case and adapter exist | Route must use adapter and persistent case/user linkage | Repository | P0 |
 | A20-A24 | Case verification, profile, timeline, synchronization | PARTIALLY DONE | Routes and seeded timeline exist | Connect frontend, enforce timeline ownership, persist events | Case persistence | P0 |
