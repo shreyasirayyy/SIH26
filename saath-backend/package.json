@@ -13,6 +13,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@google/genai": "^2.21.0",
     "@supabase/server": "^1.5.3",
     "@supabase/supabase-js": "^2.49.1",
     "cors": "^2.8.5",

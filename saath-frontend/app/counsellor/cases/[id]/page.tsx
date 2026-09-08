@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/Badge";
 import { caseService } from "@/services/case";
 import { aiService } from "@/services/ai";
 import { CaseRecord, AiOutput, CheckIn, TimelineEvent } from "@/types";
+import { EscalationEstimate } from "@/types/escalation";
 import { formatDate } from "@/lib/utils";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 
@@ -57,12 +58,14 @@ export default function CounsellorCaseDetailPage() {
   const [aiOutputs, setAiOutputs] = useState<AiOutput[]>([]);
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
   const [timeline, setTimeline] = useState<TimelineEvent[]>([]);
+  const [escalation, setEscalation] = useState<EscalationEstimate | null>(null);
 
   useEffect(() => {
     caseService.getCase(victimToken).then(setCaseRecord);
     aiService.getDistressTrajectory(victimToken).then(setAiOutputs);
     aiService.getCheckInHistory().then((history) => setCheckIns(history as CheckIn[]));
     caseService.getTimeline(victimToken).then(setTimeline);
+    aiService.getEscalationEstimate(victimToken).then(setEscalation);
   }, [victimToken]);
 
   const latest = aiOutputs.at(-1);
@@ -100,6 +103,22 @@ export default function CounsellorCaseDetailPage() {
             )}
           </div>
           <p className="mt-2 text-sm font-medium">{latest.recommendedIntervention}</p>
+        </Card>
+      )}
+
+      {escalation?.status === "available" && escalation.result && (
+        <Card className="border-amber/40 bg-amber/10">
+          <CardTitle>AI-generated escalation risk estimate</CardTitle>
+          <div className="mt-3 grid grid-cols-2 gap-y-2 text-sm">
+            <span className="text-text-secondary">Risk level</span>
+            <Badge tone="amber">{escalation.result.risk_level}</Badge>
+            <span className="text-text-secondary">Probability within 7 days</span>
+            <span className="text-right font-medium">{escalation.result.escalation_probability}%</span>
+            <span className="text-text-secondary">Confidence</span>
+            <span className="text-right font-medium">{Math.round(escalation.result.confidence * 100)}%</span>
+          </div>
+          <p className="mt-3 text-sm">{escalation.result.recommended_followup}</p>
+          <p className="mt-2 text-xs text-text-secondary">For authorised human review only. This is a prototype estimate, not a clinical diagnosis or autonomous decision.</p>
         </Card>
       )}
 
