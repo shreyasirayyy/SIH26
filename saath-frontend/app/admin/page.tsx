@@ -1,6 +1,8 @@
 "use client";
 
 import { Card, CardTitle } from "@/components/ui/Card";
+import { useEffect, useState } from "react";
+import { aiService } from "@/services/ai";
 import { DEMO_ADMIN_TRENDS } from "@/data/demo/cases";
 import { useAppStore } from "@/store/useAppStore";
 import {
@@ -16,6 +18,8 @@ export default function AdminDashboardPage() {
   const scope = role === "district" ? "District" : role === "state" ? "State" : "National";
   const totalCaseload = districts.reduce((s, d) => s + d.caseload, 0);
   const totalHighPriority = districts.reduce((s, d) => s + d.highPriority, 0);
+  const [assessments, setAssessments] = useState<Awaited<ReturnType<typeof aiService.getSahayakAssessments>>>([]);
+  useEffect(() => { void aiService.getSahayakAssessments().then(setAssessments).catch(() => setAssessments([])); }, []);
 
   return (
     <div className="space-y-6">
@@ -32,6 +36,8 @@ export default function AdminDashboardPage() {
         <Stat label="Avg response (hrs)" value={Math.round(districts.reduce((s, d) => s + d.avgResponseHrs, 0) / districts.length)} />
         <Stat label={scope === "National" ? "Districts with rising trends" : "Districts covered"} value={scope === "National" ? 8 : districts.length} />
       </div>
+
+      {assessments.length > 0 && <Card><CardTitle>Sahayak escalation signals</CardTitle><p className="mt-1 text-xs text-text-secondary">Role-based view for authorized staff. Survivor-facing chat does not show these predictions.</p><div className="mt-4 grid gap-3 md:grid-cols-3">{assessments.slice(-6).reverse().map((assessment) => <div key={assessment.id} className="rounded-xl bg-greenish-cream p-4"><div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold">{assessment.caseId ?? assessment.victimToken ?? "Case"}</span><span className="text-xs font-bold text-deep-teal">{assessment.prediction.risk_level}</span></div><p className="mt-2 text-2xl font-semibold text-deep-teal">{assessment.prediction.escalation_probability}%</p><p className="mt-1 text-xs text-text-secondary">Confidence {(assessment.prediction.confidence * 100).toFixed(0)}%</p></div>)}</div></Card>}
 
       <div className="grid gap-4 lg:grid-cols-[1.25fr_.75fr]"><Card className="bg-deep-teal text-white"><CardTitle className="text-white">{scope === "District" ? "Today in Jaipur" : scope === "State" ? "Districts needing attention" : "National signal"}</CardTitle><div className="mt-5 grid gap-4 sm:grid-cols-3"><div><p className="text-3xl font-semibold">{scope === "District" ? "6" : scope === "State" ? "2" : "8"}</p><p className="mt-1 text-xs text-white/70">rising distress signals</p></div><div><p className="text-3xl font-semibold">{scope === "District" ? "14h" : scope === "State" ? "12h" : "16h"}</p><p className="mt-1 text-xs text-white/70">median alert response</p></div><div><p className="text-3xl font-semibold">{scope === "District" ? "71%" : scope === "State" ? "68%" : "74%"}</p><p className="mt-1 text-xs text-white/70">follow-up completion</p></div></div></Card><Card><CardTitle>Privacy boundary</CardTitle><p className="mt-3 text-sm leading-relaxed text-text-secondary">This workspace shows aggregated intelligence. Individual survivor names, detailed signals, and clinical labels are not available at {scope.toLowerCase()} scope.</p><div className="mt-4 flex items-center gap-2 text-xs font-semibold text-deep-teal"><span className="h-2 w-2 rounded-full bg-sage" />Role-based access active</div></Card></div>
 
