@@ -64,4 +64,70 @@ describe('SAATH API', () => {
     expect((await request(app).get('/api/v1/alerts')).status).toBe(401);
     const health = await request(app).get('/health'); expect(health.status).toBe(200); expect(health.body).toMatchObject({ success:true, data:{status:'ok'} });
   });
+    it('enforces RBAC and returns a safe health envelope', async () => {
+    expect((await request(app).get('/api/v1/alerts')).status).toBe(401);
+    const health = await request(app).get('/health'); expect(health.status).toBe(200); expect(health.body).toMatchObject({ success:true, data:{status:'ok'} });
+  });
+
+  // D16/D15 — Gentle reminder escalation: the tone must step forward one rung at a
+  // time through light -> warm -> encouraging -> gentle-firm, never jumping straight
+  // to the harshest tone even when daysSinceLastCheckin is already large, and it must
+  // never repeat/regress on a later call with the same or a smaller day count.
+  describe('check-in reminder escalation (D15/D16)', () => {
+    it('starts at the lightest tone regardless of days missed on the very first reminder', async () => {
+      const token = await connect();
+      const res = await request(app).post('/api/v1/notifications/reminder').set('Authorization', `Bearer ${token}`).send({ daysSinceLastCheckin: 20 });
+      expect(res.status).toBe(201);
+      expect(res.body.data.tone).toBe('light');
+    });
+
+    it('steps forward one rung at a time on successive reminders instead of jumping to the day-matched stage', async () => {
+      const token = await connect();
+      const first = await request(app).post('/api/v1/notifications/reminder').set('Authorization', `Bearer ${token}`).send({ daysSinceLastCheckin: 1 });
+      expect(first.body.data.tone).toBe('light');
+
+      // daysSinceLastCheckin jumps to 10 (which alone would match 'encouraging'), but since
+      // the survivor's last reminder was only 'light', the tone should only step to 'warm'.
+      const second = await request(app).post('/api/v1/notifications/reminder').set('Authorization', `Bearer ${token}`).send({ daysSinceLastCheckin: 10 });
+      expect(second.body.data.tone).toBe('warm');
+
+      // A third call, even with a huge gap, only steps one rung further to 'encouraging'.
+      const third = await request(app).post('/api/v1/notifications/reminder').set('Authorization', `Bearer ${token}`).send({ daysSinceLastCheckin: 30 });
+      expect(third.body.data.tone).toBe('encouraging');
+    });
+
+    it('never regresses to an earlier tone once escalated', async () => {
+      const token = await connect();
+      await request(app).post('/api/v1/notifications/reminder').set('Authorization', `Bearer ${token}`).send({ daysSinceLastCheckin: 10 });
+      await request(app).post('/api/v1/notifications/reminder').set('Authorization', `Bearer ${token}`).send({ daysSinceLastCheckin: 15 });
+      // A later call with a *smaller* day count must not step the tone backwards.
+      const res = await request(app).post('/api/v1/notifications/reminder').set('Authorization', `Bearer ${token}`).send({ daysSinceLastCheckin: 0 });
+      expect(['warm', 'encouraging', 'gentle-firm']).toContain(res.body.data.tone);
+      expect(res.body.data.tone).not.toBe('light');
+    });
+  });
+
+  // E08 — Gentle re-engagement messages: TAARA should only nudge the survivor after a
+  // real inactivity threshold, never right after an active conversation.
+  describe('TAARA gentle re-engagement (E08)', () => {
+    it('sends a re-engagement message when there is no prior TAARA interaction', async () => {
+      const token = await connect();
+      const res = await request(app).post('/api/v1/notifications/taara-reengagement').set('Authorization', `Bearer ${token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.data.status).toBe('sent');
+    });
+
+    it('does not re-engage immediately after an active TAARA conversation', async () => {
+      vi.spyOn(ml, 'analyzeText').mockResolvedValue({ distressScore: 20, recoveryScore: 60, confidence: 0.8, escalationProbability: 0.1, modelName: 'test', modelVersion: 'test', pipelineVersion: 'test', signals: {}, contributingFactors: [], crisis: false, insufficientEvidence: false, status: 'available' });
+      vi.spyOn(ml, 'generateTaaraReply').mockResolvedValue({ reply: 'I hear you.', suggestedAction: 'Take a slow breath', provider: 'test', model: 'test-model' });
+
+      const token = await connect();
+      await grant(token, 'wellbeing_monitoring');
+      const taaraRes = await request(app).post('/api/v1/ai/taara').set('Authorization', `Bearer ${token}`).send({ message: 'Just checking in.' });
+      expect(taaraRes.status).toBe(200);
+
+      const reengage = await request(app).post('/api/v1/notifications/taara-reengagement').set('Authorization', `Bearer ${token}`);
+      expect(reengage.body.data.status).toBe('not_needed');
+    });
+  });
 });
