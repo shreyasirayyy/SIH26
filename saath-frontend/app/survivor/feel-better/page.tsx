@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { EXERCISE_LIBRARY } from "@/data/exercises";
 import { useAppStore } from "@/store/useAppStore";
 import { aiService } from "@/services/ai";
+import { TAARA } from "@/components/TAARA";
 
 const iconMap: Record<string, any> = { Wind, Leaf, Moon, Ear, Sparkles, BookOpen };
 
@@ -38,6 +39,7 @@ export default function FeelBetterPage() {
         <h1 className="mt-3 font-display text-5xl leading-none text-[#172326] md:text-6xl">A little more room to breathe.</h1>
         <p className="mt-5 max-w-2xl text-lg leading-relaxed text-[#63736e]">Choose something that feels possible right now. You can stop at any time — nothing here needs to be completed.</p>
       </div>
+      <div className="mt-8 max-w-xl"><TAARA compact /></div>
       
       <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {sortedExercises.map((exercise) => {

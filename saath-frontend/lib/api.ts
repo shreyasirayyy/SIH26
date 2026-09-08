@@ -19,7 +19,12 @@ export async function apiRequest<T>(path: string, init: RequestInit = {}): Promi
   const token = getSessionToken();
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
-  const response = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, { ...init, headers });
+  } catch {
+    throw new Error("SAATH services are temporarily unavailable. Please try again.");
+  }
   const payload = (await response.json()) as { success?: boolean; data?: T; error?: { message?: string } };
   if (!response.ok || payload.success === false) {
     throw new Error(payload.error?.message ?? `API request failed (${response.status})`);

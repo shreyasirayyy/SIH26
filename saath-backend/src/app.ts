@@ -209,6 +209,13 @@ app.get('/api/v1/monitoring/trends',requireAuth,asyncRoute(async(req:AuthedReque
 }));
 app.get('/api/v1/alerts',requireAuth,asyncRoute(async(req:AuthedRequest,res)=>{
   const allAlerts = store.records.get('alerts:all') || [];
+  for (const user of store.users.values()) {
+    if (!user.victimToken) continue;
+    const latestMonitoring = store.records.get(`monitoring:${user.id}`)?.at(-1);
+    if (!latestMonitoring || !['paused', 'stopped'].includes(latestMonitoring.state)) continue;
+    const offForHours = (Date.now() - new Date(latestMonitoring.createdAt).getTime()) / 3_600_000;
+    if (offForHours >= 24) recordAlert({ victimToken: user.victimToken, caseReference: user.victimToken, reason: `Monitoring has been ${latestMonitoring.state} for more than 24 hours.`, source: 'monitoring', requestedSupport: true, metadata: { state: latestMonitoring.state, offForHours: Math.round(offForHours) } });
+  }
   const filtered = req.user!.role === 'SURVIVOR' ? allAlerts.filter((a:any) => a.victimToken === req.user!.victimToken) : allAlerts;
   return ok(res, filtered);
 }));
