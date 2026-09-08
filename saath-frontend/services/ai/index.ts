@@ -3,6 +3,17 @@ import { EscalationEstimate } from "@/types/escalation";
 import { apiRequest } from "@/lib/api";
 
 export const aiService = {
+  async getSahayakPrediction(message: string, caseId?: string) {
+    return apiRequest<{ reply: string; supportAvailable: boolean }>("/api/v1/ai/sahayak", {
+      method: "POST",
+      body: JSON.stringify({ message, caseId }),
+    });
+  },
+
+  async getSahayakAssessments() {
+    return apiRequest<Array<{ id: string; victimToken?: string; caseId?: string; message: string; prediction: { escalation_probability: number; risk_level: "LOW" | "MODERATE" | "HIGH" | "CRITICAL"; confidence: number; contributing_factors: string[]; early_warning_signals: string[]; recommended_followup: string }; createdAt: string }>>("/api/v1/counsellor/sahayak-assessments");
+  },
+
   async createConsent(payload: { monitoring: boolean; voice?: boolean; text?: boolean; behavioural?: boolean; version?: string }) {
     return apiRequest("/api/v1/consents", {
       method: "POST",
