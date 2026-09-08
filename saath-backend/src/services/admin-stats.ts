@@ -108,3 +108,34 @@ export function generateAdminReport(params: { cases: CaseLike[]; alerts: AlertLi
     operationalMetrics: computeOperationalMetrics(params.alerts),
   };
 }
+
+export function buildAdminAggregatePayload(params: { scope: string; cases: CaseLike[]; alerts: AlertLike[]; interventions: Array<{ status: string; feedback?: unknown }> }) {
+  const distressStats = computeDistressStatistics(params.cases);
+  const recoveryStats = computeRecoveryStatistics(params.cases);
+  return {
+    scope: params.scope,
+    privacyBoundary: 'aggregated_only' as const,
+    caseCount: params.cases.length,
+    alertCount: params.alerts.length,
+    alertStats: {
+      open: params.alerts.filter((a) => a.status === 'open').length,
+      resolved: params.alerts.filter((a) => a.status === 'resolved').length,
+      urgent: params.alerts.filter((a) => a.severity === 'urgent').length,
+      support_request: params.alerts.filter((a) => a.severity === 'support_request').length,
+    },
+    interventionResponseStats: {
+      started: params.interventions.length,
+      completed: params.interventions.filter((i) => i.status === 'completed').length,
+      feedbackCount: params.interventions.filter((i) => i.feedback).length,
+    },
+    distressDistribution: distressStats.distressDistribution,
+    distressTrend: distressStats.trend,
+    recoveryTrend: recoveryStats.recoveryTrend,
+    caseStageStats: Object.entries(
+      params.cases.reduce((acc: Record<string, number>, c) => {
+        acc[c.currentStage] = (acc[c.currentStage] || 0) + 1;
+        return acc;
+      }, {})
+    ).map(([label, count]) => ({ label, count })),
+  };
+}
