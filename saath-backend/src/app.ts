@@ -10,7 +10,7 @@ import { logCrisisEvent, updateCrisisEventOutcome, computeCrisisResponseMetrics,
 import { moderatePost } from './services/moderation.js';
 import { computeDistressStatistics, computeRecoveryStatistics, computeOperationalMetrics, generateAdminReport, buildAdminAggregatePayload } from './services/admin-stats.js';
 import { rankInterventions, shouldEscalateToCounsellor, type InterventionOutcomeRecord } from './services/interventions.js';
-import { predictSahayak } from './services/sahayak.js';
+import { generateSahayakReply, predictSahayak } from './services/sahayak.js';
 
 const app=express(); app.use(helmet()); app.use(cors({origin:(origin,cb)=>!origin||corsOrigins.includes(origin)?cb(null,true):cb(new Error('CORS denied'))})); app.use(express.json({limit:'1mb'})); app.use(requestId); app.use(rateLimit({windowMs:60_000,max:120,standardHeaders:true,legacyHeaders:false}));
 const body=(schema:z.ZodTypeAny)=>(req:AuthedRequest,_res:express.Response,next:express.NextFunction)=>{const parsed=schema.safeParse(req.body); if(!parsed.success) return next(new AppError(400,'VALIDATION_ERROR','Request validation failed',parsed.error.flatten())); req.body=parsed.data; next();};
@@ -285,31 +285,40 @@ app.post('/api/v1/ai/taara',requireAuth,requireMonitoringConsent,body(z.object({
   return ok(res,{reply:generated.reply,safetyState,suggestedAction:generated.suggestedAction,crisis_detected:analysis.crisis,priority:alert?.priority,human_review_required:analysis.crisis,analysis:{confidence:analysis.confidence,provider:generated.provider,model:generated.model}}); 
 }));
 
-app.post('/api/v1/ai/sahayak',requireAuth,body(z.object({message:z.string().min(1).max(4000),caseId:z.string().optional()})),asyncRoute(async(req:AuthedRequest,res)=>{
+app.post('/api/v1/ai/sahayak',requireAuth,body(z.object({message:z.string().min(1).max(4000),caseId:z.string().optional(),conversation:z.array(z.object({role:z.enum(['user','assistant']),text:z.string().max(1000)})).max(8).optional()})),asyncRoute(async(req:AuthedRequest,res)=>{
   const caseRecord = req.body.caseId ? store.cases.find((item) => item.id === req.body.caseId) : store.cases.find((item) => item.victimToken === req.user!.victimToken);
   const checkIns = store.records.get(`checkins:${req.user!.id}`) || [];
   const latest = checkIns.at(-1);
   const previous = checkIns.at(-2);
+  const taaraSignals = (store.records.get(`taara:conversations:${req.user!.id}`) || []).slice(-5).map((item:any) => ({ safetyState: item.safetyState, confidence: item.confidence, createdAt: item.createdAt }));
+  const context = {
+    case_type: caseRecord?.caseCategory,
+    case_stage: caseRecord?.currentStage,
+    previous_distress_score: previous?.ml?.distressScore,
+    current_distress_score: latest?.ml?.distressScore,
+    distress_change: previous?.ml?.distressScore != null && latest?.ml?.distressScore != null ? latest.ml.distressScore - previous.ml.distressScore : undefined,
+    sentiment: latest?.ml?.signals?.sentiment,
+    emotion: latest?.ml?.signals?.emotion,
+    sleep_quality: latest?.sleep,
+    social_isolation: latest?.socialConnectedness != null ? 6 - latest.socialConnectedness : undefined,
+    counselling_status: caseRecord?.counsellorAssigned,
+    legal_aid_status: caseRecord?.legalAidStatus,
+    rehabilitation_status: caseRecord?.rehabilitationStatus,
+    days_until_hearing: caseRecord?.nextHearingDate ? Math.max(0, Math.ceil((new Date(caseRecord.nextHearingDate).getTime() - Date.now()) / 86_400_000)) : null,
+    missed_checkins_last_7_days: 0,
+    recent_checkins: checkIns.slice(-5).map((item:any) => ({ mood: item.mood, sleep: item.sleep, fear: item.fear, perceivedSafety: item.perceivedSafety, createdAt: item.createdAt })),
+    taara_signals: taaraSignals,
+  };
   const prediction = await predictSahayak({
     message: req.body.message,
-    context: {
-      case_type: caseRecord?.caseCategory,
-      case_stage: caseRecord?.currentStage,
-      previous_distress_score: previous?.ml?.distressScore,
-      current_distress_score: latest?.ml?.distressScore,
-      distress_change: previous?.ml?.distressScore != null && latest?.ml?.distressScore != null ? latest.ml.distressScore - previous.ml.distressScore : undefined,
-      counselling_status: caseRecord?.counsellorAssigned,
-      legal_aid_status: caseRecord?.legalAidStatus,
-      rehabilitation_status: caseRecord?.rehabilitationStatus,
-      days_until_hearing: caseRecord?.nextHearingDate ? Math.max(0, Math.ceil((new Date(caseRecord.nextHearingDate).getTime() - Date.now()) / 86_400_000)) : null,
-      missed_checkins_last_7_days: 0,
-    },
+    context,
+    history: req.body.conversation,
   });
+  const reply = await generateSahayakReply({ message: req.body.message, context, history: req.body.conversation });
   record('sahayak:assessments', { id: id(), victimToken: req.user!.victimToken, caseId: caseRecord?.id, message: req.body.message, prediction, createdAt: new Date().toISOString() });
   if (prediction.escalation_probability >= 75) recordAlert({ victimToken: req.user!.victimToken, caseReference: req.user!.victimToken, reason: 'Sahayak predicted critical escalation risk within 7 days.', source: 'sahayak', requestedSupport: true, confidence: prediction.confidence, metadata: { riskLevel: prediction.risk_level } });
-  const urgent = prediction.risk_level === 'HIGH' || prediction.risk_level === 'CRITICAL';
   return ok(res, {
-    reply: urgent ? 'Thank you for telling me. That sounds difficult. Would you like support from your counsellor, or would you prefer to talk about what happened today?' : 'Thank you for sharing that with me. What part of your case or today has been on your mind the most?',
+    reply,
     supportAvailable: true,
   });
 }));

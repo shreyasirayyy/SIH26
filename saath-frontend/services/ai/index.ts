@@ -3,10 +3,10 @@ import { EscalationEstimate } from "@/types/escalation";
 import { apiRequest } from "@/lib/api";
 
 export const aiService = {
-  async getSahayakPrediction(message: string, caseId?: string) {
+  async getSahayakPrediction(message: string, caseId?: string, conversation?: Array<{ role: "user" | "assistant"; text: string }>) {
     return apiRequest<{ reply: string; supportAvailable: boolean }>("/api/v1/ai/sahayak", {
       method: "POST",
-      body: JSON.stringify({ message, caseId }),
+      body: JSON.stringify({ message, caseId, conversation: conversation?.slice(-8) }),
     });
   },
 
