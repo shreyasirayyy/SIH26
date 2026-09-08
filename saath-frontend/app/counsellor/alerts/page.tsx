@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowRight, Check, CircleAlert, ShieldAlert } from "lucide-react";
+import { Badge } from "@/components/ui/Badge";
 
 const alerts = [
   { id: "A-204", level: "P2", title: "Meaningful change detected", caseName: "Sunita", docket: "NHAA-RJ-2026-004821", reason: "Sleep disturbance increased; engagement decreased", confidence: "Moderate", lastContact: "3 days ago" },

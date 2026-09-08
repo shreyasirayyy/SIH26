@@ -130,8 +130,8 @@ export const aiService = {
     const latest = trajectory.at(-1) ?? null;
     if (!latest) return null;
     try {
-      const history = await this.getCheckInHistory() as unknown[];
-      if ((history ?? []).length < 2) latest.insufficientEvidence = true;
+      const history = await this.getCheckInHistory();
+      if (Array.isArray(history) && history.length < 2) latest.insufficientEvidence = true;
     } catch {
       // non-fatal
     }

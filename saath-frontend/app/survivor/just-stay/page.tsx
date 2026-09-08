@@ -5,7 +5,7 @@ import InterventionFeedback from "@/components/InterventionFeedback";
 
 export default function JustStayPage() {
 	return (
-		<div className="flex min-h-[calc(100vh-100px)] flex-col items-center justify-center px-5 text-center">
+		<div className="relative flex min-h-[calc(100vh-100px)] flex-col items-center justify-center px-5 text-center">
 			<Link href="/survivor/feel-better" className="absolute left-5 top-5 flex items-center gap-2 text-sm font-semibold text-[#75857f] md:left-10">
 				<ArrowLeft size={16} /> Feel better
 			</Link>
