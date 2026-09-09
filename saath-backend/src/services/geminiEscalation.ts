@@ -1,10 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { env } from '../config/env.js';
 
-const ai = new GoogleGenAI({
-  apiKey: env.GEMINI_API_KEY,
-});
-
 const SYSTEM_PROMPT = `
 You are the escalation prediction engine for SAATH, an AI-powered
 mental health monitoring and support platform for victims and survivors
@@ -77,8 +73,10 @@ Return only the requested structured JSON output.
 `;
 
 export async function predictEscalation(input: Record<string, unknown>) {
+  if (!env.GEMINI_API_KEY) throw new Error('Gemini escalation model is not configured.');
+  const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
   const response = await ai.models.generateContent({
-  model: 'gemini-3-flash-preview',
+  model: env.GEMINI_MODEL,
   contents: `${SYSTEM_PROMPT}
 
 CASE DATA:

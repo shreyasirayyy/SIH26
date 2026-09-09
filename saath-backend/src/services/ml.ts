@@ -3,11 +3,12 @@ import { z } from 'zod';
 export interface Explainability { factor:string; direction:'increased_distress'|'increased_recovery'; weight:number; }
 export interface MlResult { distressScore:number|null; recoveryScore:number|null; confidence:number; escalationProbability:number|null; modelName:string; modelVersion:string; pipelineVersion:string; signals:Record<string,unknown>; contributingFactors:Explainability[]; crisis:boolean; insufficientEvidence?:boolean; status?:'available'|'unavailable'; }
 const modelOutput = z.object({ distressScore:z.number().min(0).max(100), recoveryScore:z.number().min(0).max(100), confidence:z.number().min(0).max(1), escalationProbability:z.number().min(0).max(1), signals:z.record(z.unknown()).default({}), contributingFactors:z.array(z.object({factor:z.string(),direction:z.enum(['increased_distress','increased_recovery']),weight:z.number().min(0).max(1)})).default([]), crisis:z.boolean().default(false) });
-const crisisPattern = /(suicide|kill myself|end my life|self[- ]harm|hurt myself|immediate danger|don't want to live)/i;
+const crisisPattern = /(suicid(?:e|al)|kill(?:ing)? myself|end my life|self[- ]?harm|hurt(?:ing)? myself|immediate danger|don't want to live|do not want to live|can't stay safe|cannot stay safe|want to die|better off dead|take my own life|overdose|cut myself)/i;
+export const detectCrisisLanguage = (text: string) => crisisPattern.test(text);
 const taaraOutput = z.object({ reply:z.string().min(1).max(1200), suggestedAction:z.string().min(1).max(240) });
 
 function unavailable(input:{text:string;language?:string}):MlResult { 
-  const crisis=crisisPattern.test(input.text); 
+  const crisis=detectCrisisLanguage(input.text);
   return {
     distressScore:null,
     recoveryScore:null,
@@ -47,13 +48,13 @@ async function groqAnalyze(input:{text:string;language?:string}):Promise<MlResul
     const content=payload.choices?.[0]?.message?.content; 
     if(!content) throw new Error('Groq returned no analysis'); 
     const parsed=modelOutput.parse(JSON.parse(content)); 
-    const crisis=parsed.crisis||crisisPattern.test(input.text); 
+    const crisis=parsed.crisis||detectCrisisLanguage(input.text);
     return {...parsed,crisis,modelName:'groq',modelVersion:env.GROQ_MODEL,pipelineVersion:'groq-text-v1',status:'available'}; 
   } finally { clearTimeout(timeout); } 
 }
 
 export async function generateTaaraReply(input:{message:string;language?:string;analysis:MlResult; caseContext?: any}):Promise<{reply:string;suggestedAction:string;provider:string;model:string}> { 
-  if(input.analysis.crisis) return {reply:'I am really glad you told me. You deserve immediate human support right now. Please contact local emergency services or a trusted person who can stay with you, and consider reaching out to your counsellor.',suggestedAction:'Contact immediate human support',provider:'safety-policy',model:'rule-based-crisis-v1'}; 
+  if(input.analysis.crisis) return {reply:'I am glad you told me. Your safety matters. Are you in immediate danger right now? Please contact local emergency services or a trusted person who can stay with you, and consider reaching out to your counsellor.',suggestedAction:'Immediate human support',provider:'safety-policy',model:'rule-based-crisis-v1'};
   
   if(env.AI_PROVIDER.toLowerCase()==='groq'&&env.AI_API_KEY) { 
     const controller=new AbortController(); 
@@ -85,10 +86,17 @@ export async function generateTaaraReply(input:{message:string;language?:string;
   return {reply:'I am here with you. How can I support you today?',suggestedAction:'Talk to TAARA',provider:'fallback',model:'none'}; 
 }
 
-export async function analyzeText(input:{victimToken:string;text:string;language?:string}):Promise<MlResult>{ if(env.ML_SERVICE_URL){ try { const response=await fetch(`${env.ML_SERVICE_URL}/ml/analyze-text`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(input)}); if(!response.ok) return unavailable(input); return await response.json() as MlResult; } catch { return unavailable(input); } } if(env.AI_PROVIDER.toLowerCase()==='groq'&&env.AI_API_KEY) { try { return await groqAnalyze(input); } catch { return unavailable(input); } } return unavailable(input); }
+const externalMlResult = z.object({
+  victimToken: z.string().optional(), distressScore: z.number().min(0).max(100).nullable(), recoveryScore: z.number().min(0).max(100).nullable(),
+  escalationProbability: z.number().min(0).max(1).nullable(), confidence: z.number().min(0).max(1), signals: z.record(z.unknown()).default({}),
+  contributingFactors: z.array(z.object({ factor: z.string(), direction: z.enum(['increased_distress', 'increased_recovery']), weight: z.number().min(0).max(1) })).default([]),
+  modelName: z.string(), modelVersion: z.string(), pipelineVersion: z.string(), crisis: z.boolean(), insufficientEvidence: z.boolean().optional(), status: z.enum(['available', 'unavailable']).optional(),
+});
+
+export async function analyzeText(input:{victimToken:string;text:string;language?:string}):Promise<MlResult>{ if(env.ML_SERVICE_URL){ try { const response=await fetch(`${env.ML_SERVICE_URL}/ml/analyze-text`,{method:'POST',headers:{'content-type':'application/json','x-api-key':env.ML_API_KEY??''},body:JSON.stringify({victim_token:input.victimToken,text:input.text,language:input.language??'en'})}); if(!response.ok) return unavailable(input); const parsed=externalMlResult.parse(await response.json()); return {...parsed, insufficientEvidence:parsed.insufficientEvidence??parsed.status==='unavailable'}; } catch { return unavailable(input); } } if(env.AI_PROVIDER.toLowerCase()==='groq'&&env.AI_API_KEY) { try { return await groqAnalyze(input); } catch { return unavailable(input); } } return unavailable(input); }
 
 export async function analyzeVoice(input:{victimToken:string;audio:Buffer;mimeType:string;language?:string}):Promise<{transcript:string;analysis:MlResult}> {
   const form=new FormData(); form.append('file',new Blob([new Uint8Array(input.audio)],{type:input.mimeType}),`voice-check-in.${input.mimeType.split('/')[1]||'webm'}`); if(input.language) form.append('language',input.language); form.append('victim_token',input.victimToken);
-  if(env.ML_SERVICE_URL) { const response=await fetch(`${env.ML_SERVICE_URL}/ml/analyze-voice`,{method:'POST',body:form}); if(!response.ok) throw new Error('ML voice service unavailable'); const result=await response.json() as {transcript?:string;analysis?:MlResult}; if(!result.transcript?.trim()||!result.analysis) throw new Error('ML voice response malformed'); return result as {transcript:string;analysis:MlResult}; }
+  if(env.ML_SERVICE_URL) { const response=await fetch(`${env.ML_SERVICE_URL}/ml/analyze-voice`,{method:'POST',headers:{'x-api-key':env.ML_API_KEY??''},body:form}); if(!response.ok) throw new Error('ML voice service unavailable'); const result=await response.json() as {transcript?:string;analysis?:MlResult}; if(!result.transcript?.trim()||!result.analysis) throw new Error('ML voice response malformed'); return result as {transcript:string;analysis:MlResult}; }
   if(env.AI_PROVIDER.toLowerCase()!=='groq'||!env.AI_API_KEY) throw new Error('Voice AI provider is not configured'); form.append('model','whisper-large-v3-turbo'); const response=await fetch('https://api.groq.com/openai/v1/audio/transcriptions',{method:'POST',headers:{authorization:`Bearer ${env.AI_API_KEY}`},body:form}); if(!response.ok) throw new Error('Voice transcription failed'); const result=await response.json() as {text?:string}; if(!result.text?.trim()) throw new Error('Voice transcription returned no text'); return {transcript:result.text,analysis:await analyzeText({victimToken:input.victimToken,text:result.text,language:input.language})};
 }

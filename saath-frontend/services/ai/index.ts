@@ -11,7 +11,7 @@ export const aiService = {
   },
 
   async getSahayakAssessments() {
-    return apiRequest<Array<{ id: string; victimToken?: string; caseId?: string; message: string; prediction: { escalation_probability: number; risk_level: "LOW" | "MODERATE" | "HIGH" | "CRITICAL"; confidence: number; contributing_factors: string[]; early_warning_signals: string[]; recommended_followup: string }; createdAt: string }>>("/api/v1/counsellor/sahayak-assessments");
+    return apiRequest<Array<{ id: string; victimToken?: string; caseId?: string; message: string; signals?: { caseStage?: string; currentDistressScore?: number; previousDistressScore?: number; distressChange?: number; sleepQuality?: number; sentiment?: string; emotion?: string; daysUntilHearing?: number | null }; prediction: { escalation_probability: number; risk_level: "LOW" | "MODERATE" | "HIGH" | "CRITICAL"; confidence: number; contributing_factors: string[]; early_warning_signals: string[]; recommended_followup: string }; createdAt: string }>>("/api/v1/counsellor/sahayak-assessments");
   },
 
   async createConsent(payload: { monitoring: boolean; voice?: boolean; text?: boolean; behavioural?: boolean; version?: string }) {
