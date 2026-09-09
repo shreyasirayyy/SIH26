@@ -9,22 +9,8 @@ cd saath-backend
 ```
 
 ```bash
-npm install @supabase/server
+npm i
 ```
-
-```bash
-npm install
-```
-
-```bash
-npm run build
-```
-
-To check if the backend can be run, run:
-```bash
-npm test
-```
-it either fails or passes. next-
 
 ```bash
 npm run dev
@@ -37,7 +23,7 @@ cd saath-frontend
 ```
 once youre inside the frontend folder, run:
 ```bash
-npm install
+npm i
 ```
 then run:
 ```bash
