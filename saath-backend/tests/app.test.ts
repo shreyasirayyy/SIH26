@@ -48,6 +48,24 @@ describe('SAATH API', () => {
     const token = await connect(); const response = await request(app).get('/api/v1/monitoring/distress').set('Authorization', `Bearer ${token}`);
     expect(response.body.data).toMatchObject({ state:'insufficient_evidence', score:null, summary:'no_data' });
   });
+  it('detects danger language independently and creates a human-review alert', async () => {
+        vi.spyOn(ml, 'analyzeText').mockResolvedValue({ distressScore:null, recoveryScore:null, confidence:0, escalationProbability:null, modelName:'unavailable', modelVersion:'none', pipelineVersion:'none', signals:{}, contributingFactors:[], crisis:false, insufficientEvidence:true, status:'unavailable' });
+        const token = await connect();
+        const response = await request(app).post('/api/v1/ai/crisis-screen').set('Authorization', `Bearer ${token}`).send({ text:'I cannot stay safe tonight.' });
+        expect(response.status).toBe(200);
+        expect(response.body.data).toMatchObject({ crisis:true, riskLevel:'critical', humanReviewRequired:true });
+        expect(response.body.data.response).toContain('immediate human support');
+        expect((store.records.get('alerts:all') || []).some((alert:any) => alert.crisis)).toBe(true);
+  });
+  it('interrupts TAARA with the approved supportive crisis response', async () => {
+        vi.spyOn(ml, 'analyzeText').mockResolvedValue({ distressScore:null, recoveryScore:null, confidence:0, escalationProbability:null, modelName:'unavailable', modelVersion:'none', pipelineVersion:'none', signals:{}, contributingFactors:[], crisis:false, insufficientEvidence:true, status:'unavailable' });
+        const token = await connect();
+        await grant(token, 'wellbeing_monitoring');
+        const response = await request(app).post('/api/v1/ai/taara').set('Authorization', `Bearer ${token}`).send({ message:'I want to die.' });
+        expect(response.status).toBe(200);
+        expect(response.body.data.crisis_detected).toBe(true);
+        expect(response.body.data.reply).toContain('Are you in immediate danger right now?');
+  });
   it('handles a valid voice upload as controlled unavailable when no ML service is configured', async () => {
     const token = await connect(); await grant(token, 'voice_analysis');
     const response = await request(app).post('/api/v1/check-ins/voice').set('Authorization', `Bearer ${token}`).attach('audio', Buffer.from('synthetic audio'), { filename:'checkin.wav', contentType:'audio/wav' });

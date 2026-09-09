@@ -3,7 +3,7 @@ import cors from 'cors'; import helmet from 'helmet'; import rateLimit from 'exp
 import jwt from 'jsonwebtoken';
 import { z } from 'zod'; import { randomUUID } from 'node:crypto';
 import { corsOrigins, env } from './config/env.js'; import { store, id, supabase, supabaseSelect, supabaseInsert } from './db/store.js'; import { AppError, asyncRoute, fail, ok, requestId } from './utils/http.js'; import { normalizePhone, notificationProvider, getEscalatedMessage } from './services/notifications.js';
-import { generateEscalation, getEscalatedMessage as getEscalatedReminder, nextEscalationStage } from './services/escalation.js'; import { requireAuth, requireRoles, signUser, type AuthedRequest } from './middleware/auth.js'; import { analyzeText, analyzeVoice } from './services/ml.js'; import { respondToTaara } from './services/taara/index.js'; import { findEligibleCase, syncCaseStage } from './services/case/case.service.js';
+import { generateEscalation, getEscalatedMessage as getEscalatedReminder, nextEscalationStage } from './services/escalation.js'; import { requireAuth, requireRoles, signUser, type AuthedRequest } from './middleware/auth.js'; import { analyzeText, analyzeVoice, detectCrisisLanguage } from './services/ml.js'; import { respondToTaara } from './services/taara/index.js'; import { findEligibleCase, syncCaseStage } from './services/case/case.service.js';
 import { trackCheckinCompletion, trackFollowUpResponse, computeEngagementTrend } from './services/engagement.js';
 import { recomputeBaseline, generateDistressScore, generateRecoveryScore } from './services/distress-engine.js';
 import { logCrisisEvent, updateCrisisEventOutcome, computeCrisisResponseMetrics, buildConversationLogEntry, minimize, MINIMIZATION_SCHEMA, type CrisisAuditEntry } from './services/audit-policy.js';
@@ -269,20 +269,25 @@ app.post('/api/v1/alerts/:id/resolve',requireAuth,asyncRoute(async(req:AuthedReq
 const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:env.UPLOAD_MAX_BYTES},fileFilter:(_req,file,cb)=>{if(!['audio/mpeg','audio/wav','audio/webm','audio/mp4'].includes(file.mimetype)) return cb(new AppError(400,'INVALID_AUDIO_MIME','Only MPEG, WAV, WebM, or MP4 audio is accepted.')); cb(null,true);}});
 
 app.post('/api/v1/ai/taara',requireAuth,requireMonitoringConsent,body(z.object({message:z.string().min(1).max(4000),caseId:z.string().optional()})),asyncRoute(async(req:AuthedRequest,res)=>{
-  const {analysis,reply:generated}=await respondToTaara({
+  const directCrisis = detectCrisisLanguage(req.body.message);
+  const taaraResult = directCrisis ? null : await respondToTaara({
     victimToken:req.user!.victimToken||'unknown',
     message:req.body.message,
     caseId: req.body.caseId
-  }); 
-  const safetyState=analysis.crisis?'urgent_support':analysis.confidence<.5?'uncertain':'supportive'; 
-  const alert=analysis.crisis?recordAlert({victimToken:req.user!.victimToken,caseReference:req.user!.victimToken,reason:'TAARA message requires human review.',source:'taara',crisis:true,confidence:analysis.confidence}):undefined; 
+  });
+  const analysis = taaraResult?.analysis ?? { confidence: 0, crisis: true };
+  const generated = taaraResult?.reply ?? { reply: 'I am glad you told me. Your safety matters. Are you in immediate danger right now? Please contact local emergency services or a trusted person who can stay with you, and consider reaching out to your counsellor.', suggestedAction: 'Immediate human support', provider: 'safety-policy', model: 'rule-based-crisis-v1' };
+  const crisis = directCrisis || analysis.crisis;
+  const safetyState=crisis?'urgent_support':analysis.confidence<.5?'uncertain':'supportive';
+  const alert=crisis?recordAlert({victimToken:req.user!.victimToken,caseReference:req.user!.victimToken,reason:'TAARA message requires human review.',source:'taara',crisis:true,confidence:analysis.confidence}):undefined;
+  const reply = crisis && !analysis.crisis ? 'I am glad you told me. Your safety matters. Are you in immediate danger right now? Please contact local emergency services or a trusted person who can stay with you, and consider reaching out to your counsellor.' : generated.reply;
   // E19 — Conversation logging policy: only policy-allowed metadata is persisted
   // (see RETENTION_POLICY_DAYS in services/audit-policy.ts); the raw message text
   // itself is never written to the store.
   const logEntry = buildConversationLogEntry(id, { victimToken: req.user!.victimToken, safetyState, confidence: analysis.confidence, modelVersion: generated.model });
   record('taara:conversations', logEntry);
   record(`taara:conversations:${req.user!.id}`, logEntry);
-  return ok(res,{reply:generated.reply,safetyState,suggestedAction:generated.suggestedAction,crisis_detected:analysis.crisis,priority:alert?.priority,human_review_required:analysis.crisis,analysis:{confidence:analysis.confidence,provider:generated.provider,model:generated.model}}); 
+  return ok(res,{reply,safetyState,suggestedAction:crisis?'Immediate human support':generated.suggestedAction,crisis_detected:crisis,priority:alert?.priority,human_review_required:crisis,analysis:{confidence:analysis.confidence,provider:crisis?'safety-policy':generated.provider,model:crisis?'rule-based-crisis-v1':generated.model}});
 }));
 
 app.post('/api/v1/ai/sahayak',requireAuth,body(z.object({message:z.string().min(1).max(4000),caseId:z.string().optional(),conversation:z.array(z.object({role:z.enum(['user','assistant']),text:z.string().max(1000)})).max(8).optional()})),asyncRoute(async(req:AuthedRequest,res)=>{
@@ -315,7 +320,7 @@ app.post('/api/v1/ai/sahayak',requireAuth,body(z.object({message:z.string().min(
     history: req.body.conversation,
   });
   const reply = await generateSahayakReply({ message: req.body.message, context, history: req.body.conversation });
-  record('sahayak:assessments', { id: id(), victimToken: req.user!.victimToken, caseId: caseRecord?.id, message: req.body.message, prediction, createdAt: new Date().toISOString() });
+  record('sahayak:assessments', { id: id(), victimToken: req.user!.victimToken, caseId: caseRecord?.id, message: req.body.message, prediction, signals: { caseStage: context.case_stage, currentDistressScore: context.current_distress_score, previousDistressScore: context.previous_distress_score, distressChange: context.distress_change, sleepQuality: context.sleep_quality, sentiment: context.sentiment, emotion: context.emotion, daysUntilHearing: context.days_until_hearing }, createdAt: new Date().toISOString() });
   if (prediction.escalation_probability >= 75) recordAlert({ victimToken: req.user!.victimToken, caseReference: req.user!.victimToken, reason: 'Sahayak predicted critical escalation risk within 7 days.', source: 'sahayak', requestedSupport: true, confidence: prediction.confidence, metadata: { riskLevel: prediction.risk_level } });
   return ok(res, {
     reply,
@@ -381,14 +386,15 @@ app.post('/api/v1/ai/analyze-voice', requireAuth, upload.single('audio'), asyncR
 app.post('/api/v1/ai/crisis-screen', requireAuth, body(z.object({ text: z.string().min(1).max(4000) })), asyncRoute(async (req: AuthedRequest, res) => {
   const analysis = await analyzeText({ victimToken: req.user!.victimToken ?? 'unknown', text: req.body.text });
   const flags: string[] = [];
-  if (analysis.crisis) flags.push('crisis_language_detected');
+  const crisis = analysis.crisis || detectCrisisLanguage(req.body.text);
+  if (crisis) flags.push('crisis_language_detected');
   if (analysis.insufficientEvidence) flags.push('low_confidence_analysis');
   for (const factor of analysis.contributingFactors) {
     if (factor.direction === 'increased_distress' && factor.weight >= 0.7) flags.push(`high_weight_factor:${factor.factor}`);
   }
-  const riskLevel = analysis.crisis ? 'critical' : analysis.distressScore !== null && analysis.distressScore >= 70 ? 'elevated' : 'none';
-  if (analysis.crisis) recordAlert({ victimToken: req.user!.victimToken, caseReference: req.user!.victimToken, reason: 'Crisis screen flagged this message for human review.', source: 'checkin', crisis: true, confidence: analysis.confidence });
-  return ok(res, { riskLevel, flags, confidence: analysis.confidence });
+  const riskLevel = crisis ? 'critical' : analysis.distressScore !== null && analysis.distressScore >= 70 ? 'elevated' : 'none';
+  if (crisis) recordAlert({ victimToken: req.user!.victimToken, caseReference: req.user!.victimToken, reason: 'Crisis screen flagged this message for human review.', source: 'checkin', crisis: true, confidence: analysis.confidence });
+  return ok(res, { riskLevel, flags, confidence: analysis.confidence, crisis, response: crisis ? 'Your safety matters. Please contact immediate human support or a trusted person who can stay with you. A counsellor has been notified for human review.' : null, humanReviewRequired: crisis });
 }));
 app.post('/api/v1/check-ins/voice',requireAuth,requireConsent('voice_analysis'),upload.single('audio'),asyncRoute(async(req:AuthedRequest,res)=>{if(!req.file) throw new AppError(400,'AUDIO_REQUIRED','A supported audio file is required.'); try { const voice=await analyzeVoice({victimToken:req.user!.victimToken||'unknown',audio:req.file.buffer,mimeType:req.file.mimetype,language:(req.body as {language?:string}).language}); const result=record(`checkins:${req.user!.id}`,{id:id(),type:'voice',victimToken:req.user!.victimToken,transcriptAvailable:true,ml:voice.analysis,rawAudioRetained:false,createdAt:new Date().toISOString(),analyticalState:voice.analysis.status==='unavailable'||voice.analysis.insufficientEvidence?'insufficient_evidence':'scored'}); if(voice.analysis.crisis) recordAlert({victimToken:req.user!.victimToken,caseReference:req.user!.victimToken,reason:'Voice check-in requires human review.',source:'voice',crisis:true,confidence:voice.analysis.confidence}); trackCheckinCompletion(record, id, { userId: req.user!.id, victimToken: req.user!.victimToken, channel: 'voice' }); await updateBaseline(req.user!.id); return ok(res,{...result,transcript:voice.transcript},201); } catch { throw new AppError(503,'VOICE_ANALYSIS_UNAVAILABLE','Voice transcription is temporarily unavailable. Please try a text check-in.'); }}));
 

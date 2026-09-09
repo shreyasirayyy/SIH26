@@ -95,16 +95,30 @@ function fallbackReply(input: SahayakInput): string {
   return 'Thank you for telling me. When you think about the last few days, what has been weighing on you the most?';
 }
 
+function caseFollowUp(input: SahayakInput): string {
+  const text = input.message.toLowerCase();
+  if (/(hearing|court|case|legal|docket|lawyer)/i.test(text)) return 'Which part of the case feels hardest right now: the next step, waiting for updates, or getting support?';
+  if (typeof input.context?.days_until_hearing === 'number') return 'How is the next step in your case feeling for you right now?';
+  if (/(sleep|tired|rest)/i.test(text)) return 'Has this been affecting how you manage your case or your day?';
+  if (/(unsafe|threat|danger|scared|afraid)/i.test(text)) return 'Is this worry connected to your case or to something happening today?';
+  return 'Would you like to share whether this feels connected to your case, a recent check-in, or something happening today?';
+}
+
+function makeCaseAwareReply(reply: string, input: SahayakInput): string {
+  const acknowledgement = reply.split('?')[0].trim().replace(/[.。]+$/, '');
+  return `${acknowledgement}. ${caseFollowUp(input)}`;
+}
+
 export async function generateSahayakReply(input: SahayakInput): Promise<string> {
   const history = (input.history ?? []).slice(-8);
-  if (!env.GEMINI_API_KEY) return fallbackReply(input);
+  if (!env.GEMINI_API_KEY) return makeCaseAwareReply(fallbackReply(input), input);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12_000);
   try {
     const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(env.GEMINI_MODEL)}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`, {
       method: 'POST', signal: controller.signal, headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        system_instruction: { parts: [{ text: `You are Sahayak, a warm conversational support assistant inside SAATH. You are separate from TAARA. Speak naturally, simply, and briefly in 1-3 sentences. Ask exactly ONE gentle follow-up question in every reply, related indirectly to the person's case, hearing, support, sleep, safety, family, finances, or how today feels. Do not mention distress scores, escalation, risk, confidence, models, prediction, clinical assessment, diagnosis, or hidden monitoring. Do not interrogate or ask multiple questions. Do not give legal or medical advice. If the person mentions immediate danger or self-harm, respond with empathy and ask whether they are safe right now and whether they want human support.` }] },
+        system_instruction: { parts: [{ text: `You are Sahayak, a warm conversational support assistant inside SAATH. You are separate from TAARA. Reply to the person's exact latest message first: acknowledge the feeling or meaning they actually expressed, without inventing facts. Then ask exactly ONE gentle follow-up question that naturally continues that same topic. If the message is vague (for example, "not good"), ask what feels hardest right now and offer a few simple choices without assuming the cause. If they mention their case, ask about the case-related part they want to share; if they mention sleep, ask about sleep; if they mention safety, ask about safety. Speak naturally in 1-3 short sentences. Never mention distress scores, escalation, risk, confidence, models, prediction, clinical assessment, diagnosis, or hidden monitoring. Do not interrogate, ask multiple questions, give legal/medical advice, or change topics. If immediate danger or self-harm is mentioned, respond with empathy, ask whether they are safe right now, and offer human support.` }] },
         contents: [{ role: 'user', parts: [{ text: JSON.stringify({ current_message: input.message, recent_conversation: history, available_signals: input.context ?? {} }) }] }],
         generationConfig: { temperature: 0.55, maxOutputTokens: 180 },
       }),
@@ -113,10 +127,10 @@ export async function generateSahayakReply(input: SahayakInput): Promise<string>
     const payload = await response.json() as { candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }> };
     const reply = payload.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
     if (!reply) throw new Error('Sahayak returned no conversational reply.');
-    return reply;
+    return makeCaseAwareReply(reply, input);
   } catch (error) {
     console.error('Sahayak conversation failed; using guided fallback.', error instanceof Error ? error.message : error);
-    return fallbackReply(input);
+    return makeCaseAwareReply(fallbackReply(input), input);
   } finally {
     clearTimeout(timeout);
   }
