@@ -1,8 +1,3 @@
-venv/
-__pycache__/
-.env
-*.pyc
-
 # Dependencies and package-manager caches
 **/node_modules/
 .pnpm-store/
@@ -22,3 +17,41 @@ coverage/
 
 # Local configuration and secrets
 **/.env
+**/.env.*
+!**/.env.example
+**/*.pem
+**/*.key
+**/*.crt
+**/*.p12
+**/service-account*.json
+
+# Runtime/local data
+*.log
+**/logs/
+**/uploads/
+**/.DS_Store
+.DS_Store
+
+# Python
+**/__pycache__/
+*.py[cod]
+**/.venv/
+**/venv/
+
+# Local AI models and checkpoints
+**/pretrained_speech_emotion_model/
+**/wav2vec2_checkpoints/
+
+# Local AI-agent/editor artifacts
+**/.agents/
+**/.claude/
+**/AGENTS.md
+**/CLAUDE.md
+**/skills-lock.json
+
+# Disposable audit/planning artifacts for local hackathon work
+**/FRONTEND-FILES-TO-CHANGE.md
+**/FRONTEND-BACKEND-GAP-ANALYSIS.md
+**/CURRENT-IMPLEMENTATION-AUDIT.md
+**/IMPLEMENTATION-STATUS.md
+**/REMAINING-BACKEND-AI-WORK.md
