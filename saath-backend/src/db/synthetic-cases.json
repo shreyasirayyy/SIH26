@@ -55,6 +55,7 @@
     "current_distress_score": 72,
     "predicted_7d_score": 79,
     "risk_level": "HIGH",
+    "assigned_counsellor_id": "C001",
     "followup_frequency": "every_2_days"
   },
   {
@@ -103,7 +104,7 @@
     "protection_status": "Under Review",
     "relocation_requested": false,
     "district_nodal_officer_id": "DO-391",
-    "counsellor_assigned": false,
+    "counsellor_assigned": true,
     "legal_aid_assigned": true,
     "protection_officer_assigned": true,
     "rehabilitation_status": "Not Started",
@@ -113,6 +114,7 @@
     "current_distress_score": 68,
     "predicted_7d_score": 77,
     "risk_level": "HIGH",
+    "assigned_counsellor_id": "C001",
     "followup_frequency": "every_3_days"
   },
   {
@@ -171,6 +173,7 @@
     "current_distress_score": 75,
     "predicted_7d_score": 73,
     "risk_level": "HIGH",
+    "assigned_counsellor_id": "C001",
     "followup_frequency": "every_2_days"
   },
   {
@@ -229,6 +232,7 @@
     "current_distress_score": 55,
     "predicted_7d_score": 61,
     "risk_level": "MODERATE",
+    "assigned_counsellor_id": "C002",
     "followup_frequency": "every_5_days"
   },
   {
@@ -240,7 +244,7 @@
     "district": "Chennai",
     "city": "Chennai",
     "complainant_type": "victim",
-    "name_masked": "Kavita Subramaniam",
+    "name_masked": "Kavitha Subramaniam",
     "age_group": "46-55",
     "gender": "Woman",
     "registered_mobile_masked": "******1156",
@@ -287,6 +291,7 @@
     "current_distress_score": 82,
     "predicted_7d_score": 88,
     "risk_level": "CRITICAL",
+    "assigned_counsellor_id": "C002",
     "followup_frequency": "daily"
   },
   {
@@ -345,6 +350,7 @@
     "current_distress_score": 49,
     "predicted_7d_score": 52,
     "risk_level": "MODERATE",
+    "assigned_counsellor_id": "C002",
     "followup_frequency": "every_5_days"
   },
   {
@@ -393,7 +399,7 @@
     "protection_status": "Active",
     "relocation_requested": false,
     "district_nodal_officer_id": "DO-088",
-    "counsellor_assigned": false,
+    "counsellor_assigned": true,
     "legal_aid_assigned": true,
     "protection_officer_assigned": true,
     "rehabilitation_status": "Community Rehabilitation Referral",
@@ -403,6 +409,7 @@
     "current_distress_score": 71,
     "predicted_7d_score": 76,
     "risk_level": "HIGH",
+    "assigned_counsellor_id": "C003",
     "followup_frequency": "every_3_days"
   },
   {
@@ -461,6 +468,7 @@
     "current_distress_score": 74,
     "predicted_7d_score": 83,
     "risk_level": "HIGH",
+    "assigned_counsellor_id": "C003",
     "followup_frequency": "every_2_days"
   },
   {
@@ -509,7 +517,7 @@
     "protection_status": "Not Requested",
     "relocation_requested": false,
     "district_nodal_officer_id": "DO-709",
-    "counsellor_assigned": false,
+    "counsellor_assigned": true,
     "legal_aid_assigned": true,
     "protection_officer_assigned": false,
     "rehabilitation_status": "Benefits Access Referral",
@@ -519,6 +527,7 @@
     "current_distress_score": 40,
     "predicted_7d_score": 44,
     "risk_level": "LOW",
+    "assigned_counsellor_id": "C004",
     "followup_frequency": "every_7_days"
   },
   {
@@ -577,6 +586,7 @@
     "current_distress_score": 84,
     "predicted_7d_score": 86,
     "risk_level": "CRITICAL",
+    "assigned_counsellor_id": "C004",
     "followup_frequency": "daily"
   },
   {
@@ -588,7 +598,7 @@
     "district": "Ernakulam",
     "city": "Kochi",
     "complainant_type": "victim",
-    "name_masked": "M****** S*****",
+    "name_masked": "Manik Sagar",
     "age_group": "26-35",
     "gender": "Woman",
     "registered_mobile_masked": "******6428",
@@ -635,6 +645,7 @@
     "current_distress_score": 59,
     "predicted_7d_score": 64,
     "risk_level": "MODERATE",
+    "assigned_counsellor_id": "C004",
     "followup_frequency": "every_3_days"
   }
 ]
