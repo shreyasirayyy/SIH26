@@ -49,10 +49,10 @@ risk_model = joblib.load(
 # API KEY
 # ============================================================
 
-API_KEY = os.getenv(
-    "ML_API_KEY",
-    "sahayak-dev-key"
-)
+API_KEY = os.getenv("ML_API_KEY")
+
+if not API_KEY:
+    raise RuntimeError("ML_API_KEY is not configured")
 
 
 # ============================================================
