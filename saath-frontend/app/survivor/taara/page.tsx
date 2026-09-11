@@ -5,6 +5,7 @@ import { ArrowUp, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useAppStore } from "@/store/useAppStore";
 import { aiService } from "@/services/ai";
+import { CrisisInterrupt } from "@/components/CrisisInterrupt";
 
 const PROMPTS = [
   "I feel anxious about the hearing.",
@@ -22,6 +23,7 @@ export default function TaaraPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [crisis, setCrisis] = useState(false);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -38,6 +40,13 @@ export default function TaaraPage() {
     setSending(true);
     try {
       const result = await aiService.sendTaaraMessage(text, currentCase?.id);
+      // N03 — Crisis interruption flow: when TAARA's safety check comes
+      // back as urgent_support, show the crisis UI instead of continuing
+      // the normal chat flow.
+      if (result.safetyState === "urgent_support") {
+        setCrisis(true);
+        return;
+      }
       setMessages((m) => [...m, { from: "taara", text: result.reply }]);
     } catch (e) {
       console.error(e);
@@ -49,6 +58,9 @@ export default function TaaraPage() {
 
   return (
     <div className="flex h-full flex-col px-4 py-6 sm:px-6 sm:py-8">
+      {crisis && (
+        <CrisisInterrupt reason="TAARA conversation flagged urgent_support" onDismiss={() => setCrisis(false)} />
+      )}
       <div className="flex items-center justify-between border-b border-border-color/60 pb-4">
         <div className="flex items-center gap-3">
           <span className="flex h-10 w-10 items-center justify-center rounded-full bg-pale-sage text-deep-teal">
