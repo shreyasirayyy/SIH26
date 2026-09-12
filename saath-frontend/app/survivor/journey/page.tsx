@@ -46,21 +46,7 @@ export default function JourneyPage() {
             <span className="rounded-full bg-[#e5f2ec] px-3 py-1 text-xs font-bold text-[#327d70]">Last {history.length} check-ins</span>
           </div>
           
-          {history.length === 0 ? (
-            <div className="mt-10 h-48 flex items-center justify-center text-text-secondary">Your rhythm will appear here as you check in</div>
-          ) : (
-            <>
-              <div className="mt-10 flex h-48 items-end gap-2 border-b border-[#dce5df] px-2">
-                {points.map((p, i) => (
-                  <div key={i} className="group flex flex-1 flex-col items-center gap-2">
-                    <div className="w-full rounded-t-full bg-linear-to-t from-[#2fa6a0] to-[#a8d7c0] transition-all group-hover:from-[#0f766e]" style={{ height: `${p}%` }} />
-                    <span className="text-[10px] text-[#95a29d]">{i + 1}</span>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 flex justify-between text-xs text-[#82908a]"><span>Earlier</span><span>Now</span></div>
-            </>
-          )}
+          <RhythmChart points={points} loading={loading} />
         </div>
 
         <div className="surface-soft rounded-[28px] p-6">
@@ -84,6 +70,128 @@ export default function JourneyPage() {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ─── Rhythm Chart ────────────────────────────────────────────────────────────
+
+function RhythmChart({ points, loading }: { points: number[]; loading: boolean }) {
+  // Demo data shown when no real history exists yet
+  const DEMO = [62, 55, 70, 48, 58, 44, 52, 40];
+  const isDemo = points.length === 0;
+  const raw = isDemo ? DEMO : points;
+
+  const W = 560;
+  const H = 160;
+  const PAD_X = 20;
+  const PAD_Y = 16;
+
+  const min = Math.min(...raw);
+  const max = Math.max(...raw);
+  const range = max - min || 1;
+
+  // Map to SVG coords — lower distress = higher on chart (inverted)
+  const coords = raw.map((v, i) => ({
+    x: PAD_X + (i / (raw.length - 1)) * (W - PAD_X * 2),
+    y: PAD_Y + ((v - min) / range) * (H - PAD_Y * 2),
+    // Invert so "better" is higher
+    yi: H - PAD_Y - ((v - min) / range) * (H - PAD_Y * 2),
+  }));
+
+  // Smooth cubic bezier path
+  function smoothPath(pts: { x: number; yi: number }[]) {
+    if (pts.length < 2) return "";
+    let d = `M ${pts[0].x},${pts[0].yi}`;
+    for (let i = 1; i < pts.length; i++) {
+      const prev = pts[i - 1];
+      const curr = pts[i];
+      const cpx = (prev.x + curr.x) / 2;
+      d += ` C ${cpx},${prev.yi} ${cpx},${curr.yi} ${curr.x},${curr.yi}`;
+    }
+    return d;
+  }
+
+  const linePath = smoothPath(coords);
+  // Area fill: close path down to baseline
+  const areaPath =
+    linePath +
+    ` L ${coords[coords.length - 1].x},${H - PAD_Y} L ${coords[0].x},${H - PAD_Y} Z`;
+
+  const labels = isDemo
+    ? ["", "", "", "", "", "", "", "Now"]
+    : raw.map((_, i) => (i === raw.length - 1 ? "Now" : i === 0 ? "Earlier" : ""));
+
+  return (
+    <div className="mt-6 select-none">
+      <svg
+        viewBox={`0 0 ${W} ${H + 28}`}
+        className="w-full overflow-visible"
+        aria-label="Wellbeing rhythm chart"
+      >
+        <defs>
+          <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#2fa6a0" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="#2fa6a0" stopOpacity="0.02" />
+          </linearGradient>
+          <linearGradient id="lineGrad" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="#a8d7c0" />
+            <stop offset="100%" stopColor="#0f766e" />
+          </linearGradient>
+        </defs>
+
+        {/* Horizontal grid lines */}
+        {[0.25, 0.5, 0.75].map((t) => (
+          <line
+            key={t}
+            x1={PAD_X}
+            y1={PAD_Y + t * (H - PAD_Y * 2)}
+            x2={W - PAD_X}
+            y2={PAD_Y + t * (H - PAD_Y * 2)}
+            stroke="#dce5df"
+            strokeWidth="1"
+            strokeDasharray="4 4"
+          />
+        ))}
+
+        {/* Area fill */}
+        <path d={areaPath} fill="url(#chartGrad)" />
+
+        {/* Line */}
+        <path
+          d={linePath}
+          fill="none"
+          stroke="url(#lineGrad)"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+
+        {/* Dots + labels */}
+        {coords.map((c, i) => (
+          <g key={i}>
+            <circle cx={c.x} cy={c.yi} r="5" fill="white" stroke="#0f766e" strokeWidth="2" />
+            <circle cx={c.x} cy={c.yi} r="2.5" fill="#0f766e" />
+            {labels[i] && (
+              <text
+                x={c.x}
+                y={H + 18}
+                textAnchor={i === 0 ? "start" : i === raw.length - 1 ? "end" : "middle"}
+                fontSize="11"
+                fill="#95a29d"
+              >
+                {labels[i]}
+              </text>
+            )}
+          </g>
+        ))}
+      </svg>
+
+      {isDemo && !loading && (
+        <p className="mt-1 text-center text-xs text-[#aab6b0]">
+          Complete a check-in to see your real rhythm here
+        </p>
+      )}
     </div>
   );
 }
