@@ -499,7 +499,31 @@ app.post('/api/v1/alerts/:id/:action',requireAuth,requireRoles('COUNSELLOR','DIS
 app.get('/api/v1/counsellor/cases',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>ok(res,store.cases.filter(c=>c.assignedCounsellorId===req.user!.id))));
 app.get('/api/v1/counsellor/cases/:id',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>{const c=store.cases.find(x=>x.id===req.params.id); if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); if(c.assignedCounsellorId!==req.user!.id) throw new AppError(403,'FORBIDDEN','This case is not assigned to you.'); return ok(res,{case:c,view:'summary',timeline:store.timelines.filter(x=>x.caseId===c.id)});}));
 app.get('/api/v1/counsellor/cases/:id/:view',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>{const c=store.cases.find(x=>x.id===req.params.id); if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); if(c.assignedCounsellorId!==req.user!.id) throw new AppError(403,'FORBIDDEN','This case is not assigned to you.'); return ok(res,{case:c,view:String(req.params.view),timeline:store.timelines.filter(x=>x.caseId===c.id)});}));  
-app.get('/api/v1/counsellor/voice-checkins',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(_req,res)=>{const items=[...store.records.entries()].flatMap(([key,values])=>values.filter((value:any)=>value.type==='voice'||value.type==='ivrs').map((value:any)=>({id:value.id,submittedBy:key.replace('checkins:',''),victimToken:value.victimToken,createdAt:value.createdAt,analyticalState:value.analyticalState,channel:value.type,transcript:value.type==='ivrs'?`[Phone check-in] ${Object.entries(value.responses||{}).map(([q,a])=>`${q}: ${a}`).join('; ')}${value.requestCounsellorCall?' — counsellor call requested':''}`:value.transcript,analysis:value.ml}))).sort((a:any,b:any)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()); return ok(res,items)}));
+app.get('/api/v1/counsellor/voice-checkins',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>{
+  const myVictimTokens=new Set(store.cases.filter(c=>c.assignedCounsellorId===req.user!.id).map(c=>c.victimToken));
+  const caseByToken=new Map(store.cases.map(c=>[c.victimToken,c]));
+  const items=[...store.records.entries()]
+    .flatMap(([key,values])=>values
+      .filter((value:any)=>(value.type==='voice'||value.type==='ivrs')&&myVictimTokens.has(value.victimToken))
+      .map((value:any)=>{
+        const caseRecord=caseByToken.get(value.victimToken);
+        return {
+          id:value.id,
+          submittedBy:key.replace('checkins:',''),
+          victimToken:value.victimToken,
+          survivorName:caseRecord?.survivorName??'Unknown survivor',
+          docket:caseRecord?.docket,
+          createdAt:value.createdAt,
+          analyticalState:value.analyticalState,
+          channel:value.type,
+          requestCounsellorCall:!!value.requestCounsellorCall,
+          transcript:value.type==='ivrs'?`[Phone check-in] ${Object.entries(value.responses||{}).map(([q,a])=>`${q}: ${a}`).join('; ')}${value.requestCounsellorCall?' — counsellor call requested':''}`:value.transcript,
+          analysis:value.ml,
+        };
+      }))
+    .sort((a:any,b:any)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime());
+  return ok(res,items);
+}));
 // CNS-03 — POST /counsellor/interventions: dedicated contract route (was previously
 // only reachable via the generic /counsellor/:resource catch-all below). Registered
 // BEFORE that catch-all so Express matches this specific path first.

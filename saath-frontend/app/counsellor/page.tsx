@@ -23,7 +23,18 @@ function riskTone(level?: string) {
 export default function CounsellorOverviewPage() {
   const counsellorProfile = useAppStore((s) => s.counsellorProfile);
   const [cases, setCases] = useState<CaseRecord[]>([]);
-  const [voiceCheckIns, setVoiceCheckIns] = useState<Array<{ id: string; createdAt: string; transcript?: string }>>([]);
+    const [voiceCheckIns, setVoiceCheckIns] = useState
+    Array<{
+      id: string;
+      victimToken?: string;
+      survivorName?: string;
+      docket?: string;
+      createdAt: string;
+      transcript?: string;
+      channel?: string;
+      requestCounsellorCall?: boolean;
+    }>
+  >([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -92,20 +103,37 @@ export default function CounsellorOverviewPage() {
         </Card>
       </div>
 
-      {voiceCheckIns.length > 0 && (
+            {voiceCheckIns.length > 0 && (
         <section className="rounded-2xl border border-border-color bg-pale-sage/40 p-4">
           <p className="text-sm font-semibold text-deep-teal">Voice check-ins awaiting review</p>
           <div className="mt-3 space-y-2">
             {voiceCheckIns.map((item) => (
-              <div key={item.id} className="rounded-xl bg-white p-3 text-sm">
-                <p className="text-xs text-text-secondary">{new Date(item.createdAt).toLocaleString()}</p>
+              <Link
+                key={item.id}
+                href={item.victimToken ? `/counsellor/cases/${item.victimToken}` : "#"}
+                className="block rounded-xl bg-white p-3 text-sm hover:border-deep-teal border border-transparent transition-colors"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-semibold text-text-primary">
+                    {item.survivorName ?? "Unknown survivor"}
+                    {item.docket ? <span className="ml-2 font-mono text-xs text-text-secondary">{item.docket}</span> : null}
+                  </p>
+                  {item.requestCounsellorCall && (
+                    <span className="shrink-0 rounded-full bg-[#a2542f]/10 px-2 py-0.5 text-xs font-medium text-[#a2542f]">
+                      Call requested
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-text-secondary">
+                  {new Date(item.createdAt).toLocaleString()}
+                  {item.channel ? ` · ${item.channel === "ivrs" ? "Phone (IVRS)" : "Voice"}` : ""}
+                </p>
                 <p className="mt-1">{item.transcript ?? "Transcript unavailable"}</p>
-              </div>
+              </Link>
             ))}
           </div>
         </section>
       )}
-
       <div>
         <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wide">Your patients</h2>
 
