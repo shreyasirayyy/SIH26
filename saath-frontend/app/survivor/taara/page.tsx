@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect, useMemo } from "react";
-import { ArrowUp, Sparkles, Plus, Trash2, History, X } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, ArrowUp, Sparkles, Plus, Trash2, History, X } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { useAppStore } from "@/store/useAppStore";
 import { aiService } from "@/services/ai";
@@ -119,6 +120,9 @@ export default function TaaraPage() {
         {crisis && (
           <CrisisInterrupt reason="TAARA conversation flagged urgent_support" onDismiss={() => setCrisis(false)} />
         )}
+        <Link href="/survivor/my-space" className="mb-4 inline-flex w-fit items-center gap-2 text-sm font-semibold text-[#75857f]">
+          <ArrowLeft size={16} /> My space
+        </Link>
         <div className="flex items-center justify-between border-b border-border-color/60 pb-4">
           <div className="flex items-center gap-3">
             <span className="flex h-10 w-10 items-center justify-center rounded-full bg-pale-sage text-deep-teal">

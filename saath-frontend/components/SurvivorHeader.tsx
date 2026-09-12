@@ -2,6 +2,7 @@
 
 import { Accessibility, Bell, Shield, X } from "lucide-react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { BackButton } from "@/components/BackButton";
 import { defaultAccessibilitySettings, useAppStore } from "@/store/useAppStore";
@@ -59,6 +60,8 @@ export function SurvivorHeader() {
   const accessibility = useAppStore((state) => state.accessibility);
   const setAccessibility = useAppStore((state) => state.setAccessibility);
   const resetAccessibility = useAppStore((state) => state.resetAccessibility);
+  const pathname = usePathname();
+  const hideLanguageSelector = pathname?.startsWith("/survivor/check-in/ivrs");
   const [hasNotifications, setHasNotifications] = useState(false);
   const [isAccessibilityOpen, setIsAccessibilityOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
@@ -107,10 +110,12 @@ export function SurvivorHeader() {
       </div>
 
       <div className="relative flex items-center gap-2">
-        <div className="flex rounded-full border border-border-color/70 bg-white/70 p-0.5 text-[11px]">
-          <button type="button" onClick={() => setLanguage("English")} className={hindi ? "px-2 py-1 text-text-secondary" : "rounded-full bg-deep-teal px-2 py-1 text-white"}>EN</button>
-          <button type="button" onClick={() => setLanguage("Hindi")} className={hindi ? "rounded-full bg-deep-teal px-2 py-1 text-white" : "px-2 py-1 text-text-secondary"}>हिं</button>
-        </div>
+        {!hideLanguageSelector && (
+          <div className="flex rounded-full border border-border-color/70 bg-white/70 p-0.5 text-[11px]">
+            <button type="button" onClick={() => setLanguage("English")} className={hindi ? "px-2 py-1 text-text-secondary" : "rounded-full bg-deep-teal px-2 py-1 text-white"}>EN</button>
+            <button type="button" onClick={() => setLanguage("Hindi")} className={hindi ? "rounded-full bg-deep-teal px-2 py-1 text-white" : "px-2 py-1 text-text-secondary"}>हिं</button>
+          </div>
+        )}
 
         <button
           ref={panelButtonRef}

@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
-import { BookHeart, ImagePlus, MessageCircleHeart, Plus, Sparkles, Trash2, X } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, BookHeart, ImagePlus, MessageCircleHeart, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { hopeVaultService } from "@/services/hope-vault";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -69,7 +70,11 @@ export default function HopeVaultPage() {
 
   return (
     <div className="px-5 pb-10 md:px-10 xl:px-14">
-      <div className="relative overflow-hidden rounded-4xl bg-[#fff0e5] p-8 md:p-12">
+      <Link href="/survivor/my-space" className="inline-flex items-center gap-2 text-sm font-semibold text-[#75857f]">
+        <ArrowLeft size={16} /> My space
+      </Link>
+
+      <div className="relative overflow-hidden rounded-4xl bg-[#fff0e5] p-8 md:p-12 mt-6">
         <div className="absolute -right-12 -top-16 h-56 w-56 rounded-full bg-[#f5c4a7]/35 blur-2xl" />
         <div className="relative max-w-2xl">
           <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/80 text-[#b56e4e]"><BookHeart size={23} /></span>
