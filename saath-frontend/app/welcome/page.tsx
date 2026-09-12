@@ -14,12 +14,6 @@ const options = [
     variant: "secondary",
     icon: HeartHandshake,
   },
-  {
-    title: "Start a private wellbeing space",
-    href: "/consent",
-    variant: "secondary",
-    icon: MessageSquareHeart,
-  },
 ];
 
 export default function WelcomePage() {
