@@ -27,12 +27,16 @@ export interface CaseRecord {
   legalAidStatus: string;
   rehabilitationStatus: string;
   counsellorAssigned: string;
+  assignedCounsellor?: {
+    name: string;
+    specialisation?: string;
+    phone?: string;
+  } | null;
   preferredLanguage: string;
   assignedCounsellorId?: string | null;
   followupFrequency?: string | null;
   baselineDistressScore?: number;
   currentDistressScore?: number;
-  riskLevel?: string;
 }
 
 export interface CounsellorProfile {
@@ -53,25 +57,24 @@ export interface CounsellorProfile {
 export interface CheckIn {
   timestamp: string;
   victimToken: string;
-  mood: number; // 1-5
-  sleep: number; // 1-5 (higher = worse)
+  mood: number;
+  sleep: number;
   fear: number;
   intrusion: number;
   avoidance: number;
-  socialConnectedness: number; // higher = better
+  socialConnectedness: number;
   perceivedSafety: number;
-  textSentiment: number; // -1 to 1
+  textSentiment: number;
 }
 
 export interface AiOutput {
   victimToken: string;
   timestamp: string;
-  distressScore: number; // 0-100
-  recoveryScore: number; // 0-100
+  distressScore: number;
+  recoveryScore: number;
   confidence: "Low" | "Moderate" | "High";
   escalationEstimate: "Stable" | "Watch" | "Elevated" | "Critical";
   priorityLevel: "P1" | "P2" | "P3" | "P4";
-  // When true, there is not yet enough check-in data or model confidence to make a clear call.
   insufficientEvidence?: boolean;
   contributingSignals: string[];
   recommendedIntervention: string;
