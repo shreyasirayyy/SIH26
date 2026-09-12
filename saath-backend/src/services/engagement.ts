@@ -22,7 +22,7 @@ export interface EngagementSignal {
   userId: string;
   victimToken?: string;
   eventType: EngagementEventType;
-  channel?: 'mood' | 'text' | 'voice' | 'ivrs' | 'sms' | 'quick_mood';
+  channel?: 'mood' | 'text' | 'voice' | 'ivrs' | 'sms' | 'quick_mood' | 'sahayak';
   followUpId?: string;
   responded?: boolean;
   metadata?: Record<string, unknown>;

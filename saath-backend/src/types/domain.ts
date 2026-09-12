@@ -63,8 +63,6 @@ export interface CaseRecord {
   stageStartedAt?: string | null;
   daysInCurrentStage?: number;
   accusedArrestStatus?: string;
-  assignedCounsellorId?: string | null;
-  followupFrequency?: string | null;
 }
 export interface Counsellor {
   id: string;

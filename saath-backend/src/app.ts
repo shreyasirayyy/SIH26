@@ -3,14 +3,14 @@ import cors from 'cors'; import helmet from 'helmet'; import rateLimit from 'exp
 import jwt from 'jsonwebtoken';
 import { z } from 'zod'; import { randomUUID } from 'node:crypto';
 import { corsOrigins, env } from './config/env.js'; import { store, id, supabase, supabaseSelect, supabaseInsert } from './db/store.js'; import { AppError, asyncRoute, fail, ok, requestId } from './utils/http.js'; import { normalizeEmail, normalizePhone, notificationProvider, deliverToContact } from './services/notifications.js';
-import { generateEscalation, getEscalatedMessage as getEscalatedReminder, nextEscalationStage } from './services/escalation.js'; import { requireAuth, requireRoles, signUser, type AuthedRequest } from './middleware/auth.js'; import { analyzeText, analyzeVoice, detectCrisisLanguage } from './services/ml.js'; import { respondToTaara } from './services/taara/index.js'; import { findEligibleCase, syncCaseStage } from './services/case/case.service.js';
+import { generateEscalation, latestEscalation, getEscalatedMessage as getEscalatedReminder, nextEscalationStage } from './services/escalation.js'; import { requireAuth, requireRoles, signUser, type AuthedRequest } from './middleware/auth.js'; import { analyzeText, analyzeVoice, detectCrisisLanguage } from './services/ml.js'; import { respondToTaara } from './services/taara/index.js'; import { findEligibleCase, syncCaseStage } from './services/case/case.service.js';
 import { trackCheckinCompletion, trackFollowUpResponse, computeEngagementTrend } from './services/engagement.js';
 import { recomputeBaseline, generateDistressScore, generateRecoveryScore } from './services/distress-engine.js';
 import { logCrisisEvent, updateCrisisEventOutcome, computeCrisisResponseMetrics, buildConversationLogEntry, minimize, MINIMIZATION_SCHEMA, type CrisisAuditEntry } from './services/audit-policy.js';
 import { moderatePost } from './services/moderation.js';
 import { computeDistressStatistics, computeRecoveryStatistics, computeOperationalMetrics, generateAdminReport, buildAdminAggregatePayload } from './services/admin-stats.js';
 import { rankInterventions, shouldEscalateToCounsellor, type InterventionOutcomeRecord } from './services/interventions.js';
-import { generateSahayakReply, predictSahayak } from './services/sahayak.js';
+import { generateSahayakReply } from './services/sahayak.js';
 
 const app=express(); app.use(helmet()); app.use(cors({origin:(origin,cb)=>!origin||corsOrigins.includes(origin)?cb(null,true):cb(new Error('CORS denied'))})); app.use(express.json({limit:'1mb'})); app.use(requestId); app.use(rateLimit({windowMs:60_000,max:120,standardHeaders:true,legacyHeaders:false}));
 const body=(schema:z.ZodTypeAny)=>(req:AuthedRequest,_res:express.Response,next:express.NextFunction)=>{const parsed=schema.safeParse(req.body); if(!parsed.success) return next(new AppError(400,'VALIDATION_ERROR','Request validation failed',parsed.error.flatten())); req.body=parsed.data; next();};
@@ -192,8 +192,10 @@ app.get('/api/v1/cases/:id/escalation',requireAuth,requireRoles('COUNSELLOR','DI
   if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.');
   const linkedUser=[...store.users.entries()].find(([,user])=>user?.victimToken===c.victimToken)?.[0];
   const userEntry=linkedUser?`checkins:${linkedUser}`:[...store.records.entries()].find(([key,values])=>key.startsWith('checkins:')&&values.some((value:any)=>value.victimToken===c.victimToken))?.[0];
-  const userId=userEntry?.replace('checkins:','');
-  return ok(res,userId?await generateEscalation(userId,c.victimToken):null);
+  const userId=userEntry?.replace('checkins:','') || linkedUser || c.victimToken;
+  const existing = latestEscalation(userId);
+  if (existing && existing.status === 'available') return ok(res, existing);
+  return ok(res, await generateEscalation(userId, c.victimToken));
 }));
 app.get('/api/v1/cases/:id/timeline', requireAuth, asyncRoute(async (req: AuthedRequest, res) => {
   const caseId = req.params.id;
@@ -346,42 +348,166 @@ app.post('/api/v1/ai/taara',requireAuth,requireMonitoringConsent,body(z.object({
 }));
 
 app.post('/api/v1/ai/sahayak',requireAuth,body(z.object({message:z.string().min(1).max(4000),caseId:z.string().optional(),conversation:z.array(z.object({role:z.enum(['user','assistant']),text:z.string().max(1000)})).max(8).optional()})),asyncRoute(async(req:AuthedRequest,res)=>{
-  const caseRecord = req.body.caseId ? store.cases.find((item) => item.id === req.body.caseId) : store.cases.find((item) => item.victimToken === req.user!.victimToken);
-  const checkIns = store.records.get(`checkins:${req.user!.id}`) || [];
+  const caseRecord = req.body.caseId
+    ? store.cases.find((item) => item.id === req.body.caseId || item.docket === req.body.caseId || item.victimToken === req.body.caseId)
+    : store.cases.find((item) => item.victimToken === req.user!.victimToken);
+  const victimToken = req.user!.victimToken || caseRecord?.victimToken;
+  const userId = req.user!.id;
+  const checkIns = store.records.get(`checkins:${userId}`) || [];
   const latest = checkIns.at(-1);
-  const previous = checkIns.at(-2);
-  const taaraSignals = (store.records.get(`taara:conversations:${req.user!.id}`) || []).slice(-5).map((item:any) => ({ safetyState: item.safetyState, confidence: item.confidence, createdAt: item.createdAt }));
-  const context = {
-    case_type: caseRecord?.caseCategory,
-    case_stage: caseRecord?.currentStage,
-    previous_distress_score: previous?.ml?.distressScore,
-    current_distress_score: latest?.ml?.distressScore,
-    distress_change: previous?.ml?.distressScore != null && latest?.ml?.distressScore != null ? latest.ml.distressScore - previous.ml.distressScore : undefined,
-    sentiment: latest?.ml?.signals?.sentiment,
-    emotion: latest?.ml?.signals?.emotion,
-    sleep_quality: latest?.sleep,
-    social_isolation: latest?.socialConnectedness != null ? 6 - latest.socialConnectedness : undefined,
-    counselling_status: caseRecord?.counsellorAssigned,
-    legal_aid_status: caseRecord?.legalAidStatus,
-    rehabilitation_status: caseRecord?.rehabilitationStatus,
-    days_until_hearing: caseRecord?.nextHearingDate ? Math.max(0, Math.ceil((new Date(caseRecord.nextHearingDate).getTime() - Date.now()) / 86_400_000)) : null,
-    missed_checkins_last_7_days: 0,
-    recent_checkins: checkIns.slice(-5).map((item:any) => ({ mood: item.mood, sleep: item.sleep, fear: item.fear, perceivedSafety: item.perceivedSafety, createdAt: item.createdAt })),
-    taara_signals: taaraSignals,
+
+  // Step 1: Run text through the Render ML pipeline (rule-based SAATH fusion).
+  console.log(`[Sahayak] checkIns count: ${checkIns.length} | ML_SERVICE_URL set: ${Boolean(env.ML_SERVICE_URL)}`);
+  const mlAnalysis = await analyzeText({ victimToken: victimToken || 'unknown', text: req.body.message, language: 'en' });
+  console.log(`[Sahayak] ML analysis complete — status: ${mlAnalysis.status ?? 'n/a'} | crisis: ${mlAnalysis.crisis} | insufficientEvidence: ${Boolean(mlAnalysis.insufficientEvidence)}`);
+
+  // Step 2: Crisis short-circuit (N04/E11). If the ML pipeline or local crisis rules
+  // flagged this message, fire alert and return approved response immediately.
+  if (mlAnalysis.crisis) {
+    recordAlert({ victimToken: victimToken || 'unknown', caseReference: victimToken || 'unknown', reason: 'Sahayak ML pipeline detected crisis language.', source: 'sahayak', crisis: true, confidence: mlAnalysis.confidence });
+    return ok(res, {
+      reply: "I'm really glad you told me. Your safety matters right now more than anything else. If you are in immediate danger, please contact your local emergency number or go to your nearest hospital. A counsellor from your Safe Circle has also been alerted.",
+      supportAvailable: true,
+    });
+  }
+
+  // Step 3: Run 20-feature escalation prediction engine.
+  const escalationState = await generateEscalation(userId, victimToken, mlAnalysis);
+  const escalationResult = escalationState.status === 'available' ? escalationState.result : null;
+
+  const escalationPct = escalationResult?.escalation_probability ?? (mlAnalysis.escalationProbability !== null ? Math.round(mlAnalysis.escalationProbability * 100) : 20);
+  const riskLevel = escalationResult?.risk_level ?? (escalationPct >= 75 ? 'CRITICAL' : escalationPct >= 50 ? 'HIGH' : escalationPct >= 25 ? 'MODERATE' : 'LOW');
+
+  // Step 4: Persist check-in observation so longitudinal history accumulates correctly.
+  const checkinRecord = {
+    id: id(),
+    type: 'sahayak_chat',
+    victimToken,
+    textSubmitted: true,
+    ml: mlAnalysis,
+    createdAt: new Date().toISOString(),
+    analyticalState: mlAnalysis.status === 'unavailable' || mlAnalysis.insufficientEvidence ? 'insufficient_evidence' : 'scored',
   };
-  const prediction = await predictSahayak({
+  record(`checkins:${userId}`, checkinRecord);
+  trackCheckinCompletion(record, id, { userId, victimToken, channel: 'sahayak' });
+  await updateBaseline(userId);
+
+  // Step 5: Update case record in store.cases so counsellor/admin caseloads reflect real scores.
+  if (caseRecord) {
+    caseRecord.riskLevel = riskLevel;
+    if (typeof mlAnalysis.distressScore === 'number') {
+      caseRecord.currentDistressScore = mlAnalysis.distressScore;
+    }
+    if (escalationPct !== null) {
+      caseRecord.predicted7dScore = escalationPct;
+    }
+  }
+
+  // Step 6: Persist rich assessment for counsellor and admin dashboards.
+  const daysUntilHearing = caseRecord?.nextHearingDate ? Math.max(0, Math.ceil((new Date(caseRecord.nextHearingDate).getTime() - Date.now()) / 86_400_000)) : null;
+  record('sahayak:assessments', {
+    id: id(),
+    victimToken,
+    caseId: caseRecord?.id,
+    signals: {
+      caseStage: caseRecord?.currentStage,
+      currentDistressScore: mlAnalysis.distressScore ?? latest?.ml?.distressScore,
+      previousDistressScore: latest?.ml?.distressScore,
+      distressChange: (typeof mlAnalysis.distressScore === 'number' && typeof latest?.ml?.distressScore === 'number') ? mlAnalysis.distressScore - latest.ml.distressScore : undefined,
+      mlStatus: mlAnalysis.status,
+      sentiment: mlAnalysis.signals?.sentiment as string | undefined,
+      emotion: mlAnalysis.signals?.emotion as string | undefined,
+      daysUntilHearing,
+    },
+    prediction: {
+      escalation_probability: escalationPct,
+      risk_level: riskLevel,
+      confidence: escalationResult?.confidence ?? mlAnalysis.confidence,
+      time_horizon: '7 days',
+      contributing_factors: escalationResult?.contributing_factors ?? mlAnalysis.contributingFactors.map(f => f.factor),
+      early_warning_signals: escalationResult?.early_warning_signals ?? [],
+      recommended_followup: escalationResult?.recommended_followup ?? 'Continue monitoring via check-ins',
+      warnings: [],
+      modelName: escalationResult ? 'gemini-escalation-20f' : 'saath-text-fusion-pipeline',
+      modelVersion: '1.0.0',
+      insufficientEvidence: mlAnalysis.insufficientEvidence ?? false,
+    },
+    createdAt: new Date().toISOString(),
+  });
+
+  if (escalationPct >= 75) {
+    recordAlert({
+      victimToken: victimToken || 'unknown',
+      caseReference: victimToken || 'unknown',
+      reason: 'Sahayak analysis indicates elevated escalation risk.',
+      source: 'sahayak',
+      requestedSupport: true,
+      confidence: escalationResult?.confidence ?? mlAnalysis.confidence,
+      metadata: { riskLevel },
+    });
+  }
+
+  // Step 7: Generate supportive, case-specific, non-repetitive conversational reply via Gemini.
+  const assignedCounsellor = caseRecord?.assignedCounsellorId
+    ? store.counsellors.find((c) => c.id === caseRecord.assignedCounsellorId)
+    : undefined;
+
+  const activeServices: string[] = [];
+  if (caseRecord?.counsellorAssigned === 'Assigned' || caseRecord?.assignedCounsellorId) {
+    activeServices.push(`Assigned Counsellor${assignedCounsellor ? ` (${assignedCounsellor.name})` : ''}`);
+  }
+  if (caseRecord?.legalAidStatus === 'Assigned') {
+    activeServices.push('Legal Aid Assigned');
+  }
+  if (caseRecord?.protectionOfficerAssigned || (caseRecord?.protectionStatus && caseRecord.protectionStatus !== 'Not requested')) {
+    activeServices.push(`Protection Services (${caseRecord.protectionStatus || 'Assigned'})`);
+  }
+  if (caseRecord?.financialReliefEligible || (caseRecord?.compensationStatus && caseRecord.compensationStatus !== 'Not eligible')) {
+    activeServices.push(`Financial Relief (${caseRecord.compensationStatus || 'Eligible'})`);
+  }
+  if (caseRecord?.rehabilitationStatus && caseRecord.rehabilitationStatus !== 'Not Started') {
+    activeServices.push(`Rehabilitation (${caseRecord.rehabilitationStatus})`);
+  }
+
+  const reply = await generateSahayakReply({
     message: req.body.message,
-    context,
+    caseDetails: caseRecord ? {
+      docket: caseRecord.docket,
+      state: caseRecord.state,
+      district: caseRecord.district,
+      city: caseRecord.city,
+      category: caseRecord.caseCategory,
+      stage: caseRecord.currentStage,
+      preferredLanguage: caseRecord.preferredLanguage,
+      assignedCounsellorName: assignedCounsellor?.name,
+      assignedCounsellorSpecialisation: assignedCounsellor?.specialisation,
+      daysUntilHearing: daysUntilHearing ?? undefined,
+      nextHearingDate: caseRecord.nextHearingDate,
+      counsellingStatus: caseRecord.counsellorAssigned ? 'assigned' : 'pending',
+      legalAidStatus: caseRecord.legalAidStatus,
+      protectionStatus: caseRecord.protectionStatus,
+      protectionOfficerAssigned: caseRecord.protectionOfficerAssigned,
+      financialReliefStatus: caseRecord.compensationStatus,
+      financialReliefEligible: caseRecord.financialReliefEligible,
+      approvedAmount: caseRecord.compensationAmountApproved,
+      disbursedAmount: caseRecord.compensationAmountReceived,
+      pendingAmount: caseRecord.pendingAmount,
+      rehabilitationStatus: caseRecord.rehabilitationStatus,
+      activeServices,
+    } : undefined,
+    recentCheckIns: checkIns.slice(-3).map((c: any) => ({
+      type: c.type,
+      mood: c.mood,
+      createdAt: c.createdAt,
+    })),
     history: req.body.conversation,
+    mlAnalysis,
+    contributingFactors: escalationResult?.contributing_factors ?? mlAnalysis.contributingFactors.map(f => f.factor),
   });
-  const reply = await generateSahayakReply({ message: req.body.message, context, history: req.body.conversation });
-  record('sahayak:assessments', { id: id(), victimToken: req.user!.victimToken, caseId: caseRecord?.id, message: req.body.message, prediction, signals: { caseStage: context.case_stage, currentDistressScore: context.current_distress_score, previousDistressScore: context.previous_distress_score, distressChange: context.distress_change, sleepQuality: context.sleep_quality, sentiment: context.sentiment, emotion: context.emotion, daysUntilHearing: context.days_until_hearing }, createdAt: new Date().toISOString() });
-  if (prediction.escalation_probability >= 75) recordAlert({ victimToken: req.user!.victimToken, caseReference: req.user!.victimToken, reason: 'Sahayak predicted critical escalation risk within 7 days.', source: 'sahayak', requestedSupport: true, confidence: prediction.confidence, metadata: { riskLevel: prediction.risk_level } });
-  return ok(res, {
-    reply,
-    supportAvailable: true,
-  });
+
+  return ok(res, { reply, supportAvailable: true });
 }));
+
 
 app.get('/api/v1/counsellor/sahayak-assessments',requireAuth,requireRoles('COUNSELLOR','DISTRICT_ADMIN','STATE_ADMIN','NATIONAL_ADMIN'),asyncRoute(async(_req,res)=>ok(res,store.records.get('sahayak:assessments')||[])));
 

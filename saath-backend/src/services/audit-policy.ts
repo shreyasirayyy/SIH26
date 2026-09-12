@@ -162,7 +162,7 @@ export const MINIMIZATION_SCHEMA = {
   // in the payload — the phone number is only ever used server-side to match SMS replies,
   // never surfaced in an API response, even to the survivor it belongs to.
   survivorCaseView: [
-    'id', 'reference_id', 'docket_id', 'docket', 'isSynthetic', 'survivorName', 'registeredPhone',
+    'id', 'reference_id', 'docket_id', 'docket', 'isSynthetic', 'survivorName',
     'registrationDate', 'registrationChannel', 'state', 'district', 'city', 'caseCategory', 'incidentDate',
     'currentStage', 'firStatus', 'investigationStatus', 'chargesheetStatus', 'nextHearingDate', 'hearingCount',
     'adjournmentCount', 'compensationStatus', 'compensationAmountApproved', 'compensationAmountReceived',

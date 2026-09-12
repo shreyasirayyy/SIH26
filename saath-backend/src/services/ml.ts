@@ -189,7 +189,25 @@ const externalMlResult = z.object({
   modelName: z.string(), modelVersion: z.string(), pipelineVersion: z.string(), crisis: z.boolean(), insufficientEvidence: z.boolean().optional(), status: z.enum(['available', 'unavailable']).optional(),
 });
 
-export async function analyzeText(input:{victimToken:string;text:string;language?:string}):Promise<MlResult>{ if(env.ML_SERVICE_URL){ try { const response=await fetch(`${env.ML_SERVICE_URL}/ml/analyze-text`,{method:'POST',headers:{'content-type':'application/json','x-api-key':env.ML_API_KEY??''},body:JSON.stringify({victim_token:input.victimToken,text:input.text,language:input.language??'en'})}); if(!response.ok) return unavailable(input); const parsed=externalMlResult.parse(await response.json()); return {...parsed, insufficientEvidence:parsed.insufficientEvidence??parsed.status==='unavailable'}; } catch { return unavailable(input); } } if(env.AI_PROVIDER.toLowerCase()==='groq'&&env.AI_API_KEY) { try { return await groqAnalyze(input); } catch { return unavailable(input); } } return unavailable(input); }
+export async function analyzeText(input:{victimToken:string;text:string;language?:string}):Promise<MlResult>{
+  if(env.ML_SERVICE_URL){
+    try {
+      const response=await fetch(`${env.ML_SERVICE_URL}/ml/analyze-text`,{method:'POST',headers:{'content-type':'application/json','x-api-key':env.ML_API_KEY??''},body:JSON.stringify({victim_token:input.victimToken,text:input.text,language:input.language??'en'})});
+      if(!response.ok){
+        const body=await response.text().catch(()=>'');
+        console.error(`[ML] /ml/analyze-text returned HTTP ${response.status}:`,body.slice(0,200));
+        return unavailable(input);
+      }
+      const parsed=externalMlResult.parse(await response.json());
+      return {...parsed, insufficientEvidence:parsed.insufficientEvidence??parsed.status==='unavailable'};
+    } catch(err){
+      console.error('[ML] /ml/analyze-text request failed:',err instanceof Error?err.message:String(err));
+      return unavailable(input);
+    }
+  }
+  if(env.AI_PROVIDER.toLowerCase()==='groq'&&env.AI_API_KEY){ try { return await groqAnalyze(input); } catch(err){ console.error('[ML] Groq fallback failed:',err instanceof Error?err.message:String(err)); return unavailable(input); } }
+  return unavailable(input);
+}
 
 export async function analyzeVoice(input:{victimToken:string;audio:Buffer;mimeType:string;language?:string}):Promise<{transcript:string;analysis:MlResult}> {
   const form=new FormData(); form.append('file',new Blob([new Uint8Array(input.audio)],{type:input.mimeType}),`voice-check-in.${input.mimeType.split('/')[1]||'webm'}`); if(input.language) form.append('language',input.language); form.append('victim_token',input.victimToken);
