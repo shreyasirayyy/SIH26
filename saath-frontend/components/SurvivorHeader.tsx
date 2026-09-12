@@ -22,14 +22,14 @@ type ChoicePillProps = {
 
 function ToggleRow({ label, description, checked, onChange }: ToggleRowProps) {
   return (
-    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-[#dfe8e4] bg-[#f8faf7] p-2.5 text-left">
+    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-xl border border-border-color bg-[color:var(--surface-subtle)] p-2.5 text-left">
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-[#172326]">{label}</p>
-        {description && <p className="mt-0.5 text-[11px] leading-4 text-[#667672]">{description}</p>}
+        <p className="text-sm font-semibold text-[color:var(--text-primary)]">{label}</p>
+        {description && <p className="mt-0.5 text-[11px] leading-4 text-[color:var(--text-secondary)]">{description}</p>}
       </div>
-      <span className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border transition-colors duration-150 focus-within:ring-2 focus-within:ring-[#0f766e] focus-within:ring-offset-2">
+      <span className="relative inline-flex h-6 w-11 shrink-0 items-center rounded-full border border-border-color transition-colors duration-150 focus-within:ring-2 focus-within:ring-[color:var(--focus-ring)] focus-within:ring-offset-2">
         <input type="checkbox" checked={checked} onChange={onChange} className="peer sr-only" aria-label={label} />
-        <span className={`absolute inset-0 rounded-full transition-colors ${checked ? "bg-[#0f766e]" : "bg-[#dfe5e2]"}`} />
+        <span className={`absolute inset-0 rounded-full transition-colors ${checked ? "bg-[color:var(--primary-teal)]" : "bg-[color:var(--border)]"}`} />
         <span className={`relative ml-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${checked ? "translate-x-5" : "translate-x-0"}`} />
       </span>
     </label>
@@ -38,7 +38,7 @@ function ToggleRow({ label, description, checked, onChange }: ToggleRowProps) {
 
 function ChoicePill({ label, selected, onClick }: ChoicePillProps) {
   return (
-    <button type="button" aria-pressed={selected} onClick={onClick} className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors ${selected ? "border-[#0f766e] bg-[#0f766e] text-white" : "border-[#dfe8e4] bg-[#f4f6f3] text-[#53615d] hover:border-[#bfd2ca]"}`}>
+    <button type="button" aria-pressed={selected} onClick={onClick} className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors ${selected ? "border-[color:var(--primary-teal)] bg-[color:var(--primary-teal)] text-white" : "border-border-color bg-[color:var(--surface-subtle)] text-[color:var(--text-secondary)] hover:border-[color:var(--primary-teal-light)]"}`}>
       {label}
     </button>
   );
@@ -46,8 +46,8 @@ function ChoicePill({ label, selected, onClick }: ChoicePillProps) {
 
 function SectionGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="space-y-3 rounded-2xl border border-[#e8eeeb] bg-[#fbfcfa] p-3.5">
-      <h3 className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#7b8b87]">{title}</h3>
+    <section className="space-y-3 rounded-2xl border border-border-color bg-[color:var(--surface-subtle)] p-3.5">
+      <h3 className="text-[11px] font-bold uppercase tracking-[0.16em] text-[color:var(--text-secondary)]">{title}</h3>
       {children}
     </section>
   );
@@ -141,13 +141,13 @@ export function SurvivorHeader() {
         </Link>
 
         {isAccessibilityOpen && (
-          <div id="saath-accessibility-panel" ref={panelRef} role="dialog" aria-modal="false" aria-label="Accessibility" className="absolute right-0 top-[calc(100%+0.75rem)] z-50 w-[min(25rem,calc(100vw-1.25rem))] overflow-hidden rounded-[1.5rem] border border-[#dfe7e3] bg-white/95 shadow-[0_18px_50px_rgba(23,35,38,0.14)] backdrop-blur-sm">
-            <div className="flex items-start justify-between border-b border-[#edf1ee] px-4 py-3.5">
+          <div id="saath-accessibility-panel" ref={panelRef} role="dialog" aria-modal="false" aria-label="Accessibility" className="absolute right-0 top-[calc(100%+0.75rem)] z-50 w-[min(25rem,calc(100vw-1.25rem))] overflow-hidden rounded-[1.5rem] border border-border-color bg-[color:var(--surface)] shadow-[0_18px_50px_rgba(23,35,38,0.14)] backdrop-blur-sm">
+            <div className="flex items-start justify-between border-b border-border-color px-4 py-3.5">
               <div>
-                <h2 className="font-display text-[1.45rem] leading-none text-[#172326]">Accessibility</h2>
-                <p className="mt-1 text-xs text-[#61706d]">Choose the settings that make SAATH easier to use.</p>
+                <h2 className="font-display text-[1.45rem] leading-none text-[color:var(--text-primary)]">Accessibility</h2>
+                <p className="mt-1 text-xs text-[color:var(--text-secondary)]">Choose the settings that make SAATH easier to use.</p>
               </div>
-              <button type="button" aria-label="Close accessibility panel" onClick={() => setIsAccessibilityOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-full border border-[#dfe8e4] bg-[#f3f6f4] text-[#42514d] hover:bg-[#ebf1ee] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0f766e] focus-visible:ring-offset-2">
+              <button type="button" aria-label="Close accessibility panel" onClick={() => setIsAccessibilityOpen(false)} className="flex h-8 w-8 items-center justify-center rounded-full border border-border-color bg-[color:var(--surface-subtle)] text-[color:var(--text-primary)] hover:bg-[color:var(--surface-raised)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring)] focus-visible:ring-offset-2">
                 <X size={15} />
               </button>
             </div>
@@ -212,7 +212,7 @@ export function SurvivorHeader() {
             </div>
 
             <div className="border-t border-[#edf1ee] px-4 py-3">
-              <button type="button" onClick={() => { resetAccessibility(); setIsAccessibilityOpen(false); }} className="w-full rounded-xl border border-[#dfe8e4] bg-[#f6f8f7] px-3 py-2 text-sm font-semibold text-[#172326] hover:bg-[#edf3f1] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0f766e] focus-visible:ring-offset-2">
+              <button type="button" onClick={() => { resetAccessibility(); setIsAccessibilityOpen(false); }} className="w-full rounded-xl border border-border-color bg-[color:var(--surface-subtle)] px-3 py-2 text-sm font-semibold text-[color:var(--text-primary)] hover:bg-[color:var(--surface-raised)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring)] focus-visible:ring-offset-2">
                 Reset all settings
               </button>
             </div>
