@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors'; import helmet from 'helmet'; import rateLimit from 'express-rate-limit'; import multer from 'multer';
 import jwt from 'jsonwebtoken';
 import { z } from 'zod'; import { randomUUID } from 'node:crypto';
-import { corsOrigins, env } from './config/env.js'; import { store, id, supabase, supabaseSelect, supabaseInsert } from './db/store.js'; import { AppError, asyncRoute, fail, ok, requestId } from './utils/http.js'; import { normalizePhone, notificationProvider, getEscalatedMessage } from './services/notifications.js';
+import { corsOrigins, env } from './config/env.js'; import { store, id, supabase, supabaseSelect, supabaseInsert } from './db/store.js'; import { AppError, asyncRoute, fail, ok, requestId } from './utils/http.js'; import { normalizeEmail, normalizePhone, notificationProvider, deliverToContact } from './services/notifications.js';
 import { generateEscalation, getEscalatedMessage as getEscalatedReminder, nextEscalationStage } from './services/escalation.js'; import { requireAuth, requireRoles, signUser, type AuthedRequest } from './middleware/auth.js'; import { analyzeText, analyzeVoice, detectCrisisLanguage } from './services/ml.js'; import { respondToTaara } from './services/taara/index.js'; import { findEligibleCase, syncCaseStage } from './services/case/case.service.js';
 import { trackCheckinCompletion, trackFollowUpResponse, computeEngagementTrend } from './services/engagement.js';
 import { recomputeBaseline, generateDistressScore, generateRecoveryScore } from './services/distress-engine.js';
@@ -11,7 +11,6 @@ import { moderatePost } from './services/moderation.js';
 import { computeDistressStatistics, computeRecoveryStatistics, computeOperationalMetrics, generateAdminReport, buildAdminAggregatePayload } from './services/admin-stats.js';
 import { rankInterventions, shouldEscalateToCounsellor, type InterventionOutcomeRecord } from './services/interventions.js';
 import { generateSahayakReply, predictSahayak } from './services/sahayak.js';
-import { normalizeEmail, notificationProvider, deliverToContact, getEscalatedMessage } from './services/notifications.js';
 
 const app=express(); app.use(helmet()); app.use(cors({origin:(origin,cb)=>!origin||corsOrigins.includes(origin)?cb(null,true):cb(new Error('CORS denied'))})); app.use(express.json({limit:'1mb'})); app.use(requestId); app.use(rateLimit({windowMs:60_000,max:120,standardHeaders:true,legacyHeaders:false}));
 const body=(schema:z.ZodTypeAny)=>(req:AuthedRequest,_res:express.Response,next:express.NextFunction)=>{const parsed=schema.safeParse(req.body); if(!parsed.success) return next(new AppError(400,'VALIDATION_ERROR','Request validation failed',parsed.error.flatten())); req.body=parsed.data; next();};
@@ -104,7 +103,33 @@ const requireMonitoringConsent=requireConsent('wellbeing_monitoring');
 app.get('/',(_req,res)=>ok(res,{service:'saath-backend',status:'ok',api:'/api/v1',health:'/health'}));
 app.get('/health',(_req,res)=>ok(res,{status:'ok',service:'saath-backend',dataMode:env.DATA_MODE,syntheticCaseAdapter:true}));
 app.get('/health/dependencies',asyncRoute(async(_req,res)=>ok(res,{supabase:env.DATA_MODE==='supabase'?'configured':'not_configured',ml_service:env.ML_SERVICE_URL?'configured':'not_configured',notifications:'not_configured'})));
-app.post('/api/v1/auth/staff-token',body(z.object({role:z.enum(['COUNSELLOR','DISTRICT_ADMIN','STATE_ADMIN','NATIONAL_ADMIN']),staffId:z.string().min(2)})),asyncRoute(async(req,res)=>{if(env.NODE_ENV!=='test'&&!env.ALLOW_DEV_STAFF_TOKEN) throw new AppError(403,'STAFF_TOKEN_DISABLED','Development staff tokens are disabled.'); return ok(res,{accessToken:signUser({id:req.body.staffId,role:req.body.role}),tokenType:'Bearer',user:{id:req.body.staffId,role:req.body.role}})}));
+// Dev-only backdoor — kept for admin roles (district/state/national demo access),
+// but COUNSELLOR is no longer issuable here: counsellors must authenticate via
+// /api/v1/auth/counsellor-login against the real synthetic-counsellors roster.
+app.post('/api/v1/auth/staff-token',body(z.object({role:z.enum(['DISTRICT_ADMIN','STATE_ADMIN','NATIONAL_ADMIN']),staffId:z.string().min(2)})),asyncRoute(async(req,res)=>{if(env.NODE_ENV!=='test'&&!env.ALLOW_DEV_STAFF_TOKEN) throw new AppError(403,'STAFF_TOKEN_DISABLED','Development staff tokens are disabled.'); return ok(res,{accessToken:signUser({id:req.body.staffId,role:req.body.role}),tokenType:'Bearer',user:{id:req.body.staffId,role:req.body.role}})}));
+
+// Real counsellor login — verifies email + password against the
+// synthetic-counsellors roster loaded into the store. The signed token's
+// `id` is the counsellor_id (e.g. "C001"), which is exactly what each case's
+// assignedCounsellorId is set to, so case-ownership checks line up directly.
+app.post('/api/v1/auth/counsellor-login',body(z.object({email:z.string().email(),password:z.string().min(1)})),asyncRoute(async(req,res)=>{
+  const email = req.body.email.trim().toLowerCase();
+  const counsellor = store.counsellors.find((c) => c.email.toLowerCase() === email);
+  if (!counsellor || counsellor.password !== req.body.password) throw new AppError(401,'INVALID_CREDENTIALS','Incorrect email or password.');
+  if (counsellor.status && counsellor.status !== 'Active') throw new AppError(403,'ACCOUNT_INACTIVE','This counsellor account is not active.');
+  counsellor.lastLogin = new Date().toISOString();
+  const accessToken = signUser({ id: counsellor.id, role: 'COUNSELLOR', state: counsellor.state });
+  const { password: _pw, ...safeCounsellor } = counsellor;
+  return ok(res, { accessToken, tokenType: 'Bearer', user: { id: counsellor.id, role: 'COUNSELLOR' }, counsellor: safeCounsellor });
+}));
+
+app.get('/api/v1/counsellor/me',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>{
+  const counsellor = store.counsellors.find((c) => c.id === req.user!.id);
+  if (!counsellor) throw new AppError(404,'COUNSELLOR_NOT_FOUND','Counsellor profile not found.');
+  const assignedCases = store.cases.filter((c) => c.assignedCounsellorId === counsellor.id);
+  const { password: _pw, ...safeCounsellor } = counsellor;
+  return ok(res, { ...safeCounsellor, casesAssigned: assignedCases.length });
+}));
 const safeCase = (c: any) => minimize({ ...c, reference_id:c.docket, docket_id:c.docket, docket:c.docket, isSynthetic:true }, MINIMIZATION_SCHEMA.survivorCaseView);
 const connectCaseByDocket = async (req: { body: { reference_id?: string; docket?: string } }, res: express.Response) => {
   const docket = (req.body.reference_id ?? req.body.docket ?? '').trim();
@@ -144,7 +169,10 @@ app.get('/api/v1/cases/:id',requireAuth,asyncRoute(async(req:AuthedRequest,res)=
   const c=store.cases.find(x=>x.id===req.params.id||x.victimToken===req.params.id||x.docket===req.params.id); 
   if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); 
   if(req.user!.role==='SURVIVOR'&&req.user!.victimToken!==c.victimToken&&!(store.records.get(`user:${req.user!.id}:cases`)||[]).includes(c.id)) throw new AppError(403,'FORBIDDEN','You can only access your own case.'); 
-  return ok(res, c);
+  // Resolve the real counsellor record (name/specialisation/phone) instead of
+  // leaving the survivor with just the boolean "Assigned"/"Not assigned" flag.
+  const assignedCounsellor = c.assignedCounsellorId ? store.counsellors.find(x => x.id === c.assignedCounsellorId) : undefined;
+  return ok(res, { ...c, assignedCounsellor: assignedCounsellor ? { name: assignedCounsellor.name, specialisation: assignedCounsellor.specialisation, phone: assignedCounsellor.phone } : null });
 }));
 app.get('/api/v1/cases/:id/escalation',requireAuth,requireRoles('COUNSELLOR','DISTRICT_ADMIN','STATE_ADMIN','NATIONAL_ADMIN'),asyncRoute(async(req,res)=>{
   const c=store.cases.find(x=>x.id===req.params.id||x.victimToken===req.params.id||x.docket===req.params.id);
@@ -414,30 +442,25 @@ app.post('/api/v1/check-ins/voice',requireAuth,requireConsent('voice_analysis'),
 
 
 // ...existing code...
-app.post('/api/v1/check-ins/ivrs', requireAuth, upload.single('audio'), asyncRoute(async (req: AuthedRequest, res) => {
-  // Generic IVRS webhook contract: expects audio file upload
-  if (!req.file) throw new AppError(400, 'AUDIO_REQUIRED', 'Audio file is required.');
-  
-  // Process through existing voice analysis pipeline
-  const voice = await analyzeVoice({
-    victimToken: req.user!.victimToken || 'unknown',
-    audio: req.file.buffer,
-    mimeType: req.file.mimetype,
-    language: 'en'
-  });
+const ivrsSchema = z.object({ language: z.string().default('en'), responses: z.record(z.string()).default({}), requestCounsellorCall: z.boolean().default(false), provider: z.string().optional() });
+app.post('/api/v1/check-ins/ivrs', requireAuth, body(ivrsSchema), asyncRoute(async (req: AuthedRequest, res) => {
+  const summary = Object.entries(req.body.responses).map(([question, answer]) => `${question}: ${answer}`).join('; ') || 'No responses recorded.';
+  const ml = await analyzeText({ victimToken: req.user!.victimToken || 'unknown', text: summary, language: req.body.language });
 
   const result = record(`checkins:${req.user!.id}`, {
     id: id(),
-    type: 'ivrs_audio',
+    type: 'ivrs',
     victimToken: req.user!.victimToken,
-    ml: voice.analysis,
+    responses: req.body.responses,
+    requestCounsellorCall: req.body.requestCounsellorCall,
+    ml,
     createdAt: new Date().toISOString(),
-    analyticalState: 'scored'
+    analyticalState: ml.status === 'unavailable' || ml.insufficientEvidence ? 'insufficient_evidence' : 'scored'
   });
 
-  if (voice.analysis.crisis) recordAlert({ victimToken: req.user!.victimToken, caseReference: req.user!.victimToken, reason: 'IVRS check-in requires human review.', source: 'checkin', crisis: true, confidence: voice.analysis.confidence });
+  if (ml.crisis) recordAlert({ victimToken: req.user!.victimToken, caseReference: req.user!.victimToken, reason: 'IVRS check-in requires human review.', source: 'checkin', crisis: true, confidence: ml.confidence });
+  if (req.body.requestCounsellorCall) recordAlert({ victimToken: req.user!.victimToken, caseReference: req.user!.victimToken, reason: 'Survivor requested a counsellor phone call via IVRS check-in.', source: 'checkin', crisis: false, requestedSupport: true, confidence: ml.confidence });
   trackCheckinCompletion(record, id, { userId: req.user!.id, victimToken: req.user!.victimToken, channel: 'ivrs' });
-  // Trigger baseline update
   await updateBaseline(req.user!.id);
 
   return ok(res, result, 201);
@@ -458,10 +481,12 @@ app.post('/api/v1/alerts/:id/:action',requireAuth,requireRoles('COUNSELLOR','DIS
     if (action === 'resolve') updateCrisisEventOutcome(crisisEntries, alert.id, { resolvedAt: now, outcome: 'human_review_completed', notes: req.body.note });
   }
   return ok(res,alert);}));
-app.get('/api/v1/counsellor/cases',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(_req,res)=>ok(res,store.cases)));
-app.get('/api/v1/counsellor/cases/:id',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req,res)=>{const c=store.cases.find(x=>x.id===req.params.id); if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); return ok(res,{case:c,view:'summary',timeline:store.timelines.filter(x=>x.caseId===c.id)});}));
-app.get('/api/v1/counsellor/cases/:id/:view',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req,res)=>{const c=store.cases.find(x=>x.id===req.params.id); if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); return ok(res,{case:c,view:String(req.params.view),timeline:store.timelines.filter(x=>x.caseId===c.id)});}));
-app.get('/api/v1/counsellor/voice-checkins',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(_req,res)=>{const items=[...store.records.entries()].flatMap(([key,values])=>values.filter((value:any)=>value.type==='voice').map((value:any)=>({id:value.id,submittedBy:key.replace('checkins:',''),victimToken:value.victimToken,createdAt:value.createdAt,analyticalState:value.analyticalState,transcript:value.transcript,analysis:value.ml}))); return ok(res,items)}));
+// Filtered to only the cases assigned to the authenticated counsellor —
+// previously returned store.cases unfiltered (every counsellor saw every case).
+app.get('/api/v1/counsellor/cases',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>ok(res,store.cases.filter(c=>c.assignedCounsellorId===req.user!.id))));
+app.get('/api/v1/counsellor/cases/:id',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>{const c=store.cases.find(x=>x.id===req.params.id); if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); if(c.assignedCounsellorId!==req.user!.id) throw new AppError(403,'FORBIDDEN','This case is not assigned to you.'); return ok(res,{case:c,view:'summary',timeline:store.timelines.filter(x=>x.caseId===c.id)});}));
+app.get('/api/v1/counsellor/cases/:id/:view',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>{const c=store.cases.find(x=>x.id===req.params.id); if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); if(c.assignedCounsellorId!==req.user!.id) throw new AppError(403,'FORBIDDEN','This case is not assigned to you.'); return ok(res,{case:c,view:String(req.params.view),timeline:store.timelines.filter(x=>x.caseId===c.id)});}));  
+app.get('/api/v1/counsellor/voice-checkins',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(_req,res)=>{const items=[...store.records.entries()].flatMap(([key,values])=>values.filter((value:any)=>value.type==='voice'||value.type==='ivrs').map((value:any)=>({id:value.id,submittedBy:key.replace('checkins:',''),victimToken:value.victimToken,createdAt:value.createdAt,analyticalState:value.analyticalState,channel:value.type,transcript:value.type==='ivrs'?`[Phone check-in] ${Object.entries(value.responses||{}).map(([q,a])=>`${q}: ${a}`).join('; ')}${value.requestCounsellorCall?' — counsellor call requested':''}`:value.transcript,analysis:value.ml}))).sort((a:any,b:any)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()); return ok(res,items)}));
 // CNS-03 — POST /counsellor/interventions: dedicated contract route (was previously
 // only reachable via the generic /counsellor/:resource catch-all below). Registered
 // BEFORE that catch-all so Express matches this specific path first.

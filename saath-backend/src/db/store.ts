@@ -28,6 +28,23 @@ const demoCounsellors: Counsellor[] = canonicalCounsellors.map((c) => ({
 
 // This is the only memory-mode case source. It maps the authoritative synthetic
 // dataset without adding another fixture or exposing direct identity data.
+const normalizeStage = (stage?: string) => {
+  switch (stage) {
+    case 'complaint_review':
+      return 'Registered';
+    case 'investigation':
+      return 'Investigation';
+    case 'trial':
+      return 'Trial';
+    case 'compensation':
+      return 'Compensation';
+    case 'rehabilitation':
+      return 'Rehabilitation';
+    default:
+      return stage ?? 'Registered';
+  }
+};
+
 const demoCases: CaseRecord[] = canonicalCases.map((source, index) => ({
   id: `synthetic-case-${String(index + 1).padStart(3, '0')}`,
   docket: source.docket_id, 
@@ -39,7 +56,7 @@ const demoCases: CaseRecord[] = canonicalCases.map((source, index) => ({
   district: source.district,
   caseCategory: source.case_type, 
   incidentDate: source.incident_date, 
-  currentStage: source.case_stage,
+  currentStage: normalizeStage(source.case_stage),
   firStatus: source.fir_registered ? 'Registered' : 'Not registered', 
   investigationStatus: source.investigation_status,
   chargesheetStatus: source.chargesheet_status, 
@@ -73,10 +90,7 @@ const demoCases: CaseRecord[] = canonicalCases.map((source, index) => ({
 }));
 export const memoryStore: Store = {
   cases: demoCases,
-  timelines: demoCases.flatMap((caseRecord) => [
-    { id: `${caseRecord.id}-registered`, caseId: caseRecord.id, date: caseRecord.registrationDate, type: 'case' as const, label: 'Synthetic case registered' },
-    { id: `${caseRecord.id}-monitoring`, caseId: caseRecord.id, date: caseRecord.registrationDate, type: 'wellbeing' as const, label: 'Voluntary wellbeing check-in available' },
-  ]),
+  timelines: [],
   counsellors: demoCounsellors,
   users: new Map(), records: new Map(), blocklist: new Set(),
 };
