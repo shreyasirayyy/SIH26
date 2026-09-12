@@ -1,0 +1,279 @@
+import { describe, expect, it, beforeEach, vi } from 'vitest';
+import request from 'supertest';
+import { app } from '../src/app.js';
+import { store } from '../src/db/store.js';
+import * as ml from '../src/services/ml.js';
+import * as geminiEscalation from '../src/services/geminiEscalation.js';
+import * as sahayakService from '../src/services/sahayak.js';
+
+import { env } from '../src/config/env.js';
+
+const docket = 'NHAA-RJ-2026-004821';
+
+const connect = async () => {
+  const response = await request(app).post('/api/v1/cases/connect').send({ reference_id: docket });
+  return {
+    token: response.body.data.accessToken as string,
+    user: response.body.data.user,
+    caseRecord: response.body.data.case,
+  };
+};
+
+describe('Sahayak Pipeline & Dashboard Integration', () => {
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    (env as any).GEMINI_API_KEY = 'test-gemini-key';
+    store.users.clear();
+    store.records.clear();
+    store.blocklist.clear();
+  });
+
+  it('persists check-ins from Sahayak chat, calls escalation prediction, updates case record, and returns to counsellor dashboard', async () => {
+    // 1. Mock ML analysis (from Render /ml/analyze-text)
+    vi.spyOn(ml, 'analyzeText').mockResolvedValue({
+      distressScore: 62,
+      recoveryScore: 40,
+      confidence: 0.85,
+      escalationProbability: 0.65,
+      modelName: 'saath-text-fusion-pipeline',
+      modelVersion: '1.0.0',
+      pipelineVersion: 'ml-api-analyze-text-v2',
+      signals: {
+        sentiment: 'negative',
+        emotion: 'fear',
+        themes: ['court stress', 'sleep disturbance'],
+      },
+      contributingFactors: [
+        { factor: 'court_stress', direction: 'increased_distress', weight: 0.7 },
+        { factor: 'sleep_disturbance', direction: 'increased_distress', weight: 0.6 },
+      ],
+      crisis: false,
+      insufficientEvidence: false,
+      status: 'available',
+    });
+
+    // 2. Mock 20-feature escalation prediction (Gemini escalation)
+    vi.spyOn(geminiEscalation, 'predictEscalation').mockResolvedValue(
+      JSON.stringify({
+        escalation_probability: 68,
+        risk_level: 'HIGH',
+        confidence: 0.82,
+        time_horizon: '7 days',
+        contributing_factors: ['Court stress from upcoming hearing', 'Persistent sleep disruption'],
+        early_warning_signals: ['Rising distress trajectory'],
+        recommended_followup: 'Schedule counsellor check-in within 48 hours',
+      })
+    );
+
+    // 3. Connect survivor session
+    const { token, user } = await connect();
+
+    // 4. Send Sahayak message
+    const sahayakResponse = await request(app)
+      .post('/api/v1/ai/sahayak')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        message: 'I am really struggling to sleep because of the upcoming hearing.',
+      });
+
+    expect(sahayakResponse.status).toBe(200);
+    expect(sahayakResponse.body.data.reply).toBeDefined();
+    expect(typeof sahayakResponse.body.data.reply).toBe('string');
+    // Verify it doesn't end with the old repetitive canned template
+    expect(sahayakResponse.body.data.reply).not.toContain('Would you like to share whether this feels connected to your case, a recent check-in, or something happening today?');
+
+    // 5. Verify check-in was persisted into store.records under checkins:${userId}
+    const checkIns = store.records.get(`checkins:${user.id}`) ?? [];
+    expect(checkIns.length).toBe(1);
+    expect(checkIns[0].type).toBe('sahayak_chat');
+    expect(checkIns[0].ml.distressScore).toBe(62);
+
+    // 6. Verify caseRecord in store.cases was updated with risk level and distress
+    const matchedCase = store.cases.find((c) => c.docket === docket);
+    expect(matchedCase?.riskLevel).toBe('HIGH');
+    expect(matchedCase?.currentDistressScore).toBe(62);
+    expect(matchedCase?.predicted7dScore).toBe(68);
+
+    // 7. Verify sahayak:assessments has rich prediction for dashboards
+    const assessments = store.records.get('sahayak:assessments') ?? [];
+    expect(assessments.length).toBe(1);
+    expect(assessments[0].prediction.risk_level).toBe('HIGH');
+    expect(assessments[0].prediction.escalation_probability).toBe(68);
+    expect(assessments[0].prediction.time_horizon).toBe('7 days');
+    expect(assessments[0].prediction.modelName).toBe('gemini-escalation-20f');
+
+    // 8. Verify Counsellor/Admin API receives the prediction
+    // Staff token for admin/counsellor
+    const staffRes = await request(app)
+      .post('/api/v1/auth/staff-token')
+      .send({ role: 'DISTRICT_ADMIN', staffId: 'admin-001' });
+    const staffToken = staffRes.body.data.accessToken;
+
+    const sahayakAssessmentsRes = await request(app)
+      .get('/api/v1/counsellor/sahayak-assessments')
+      .set('Authorization', `Bearer ${staffToken}`);
+    expect(sahayakAssessmentsRes.status).toBe(200);
+    expect(sahayakAssessmentsRes.body.data.length).toBe(1);
+    expect(sahayakAssessmentsRes.body.data[0].prediction.risk_level).toBe('HIGH');
+
+    // 9. Verify case escalation API returns the stored prediction
+    const caseEscalationRes = await request(app)
+      .get(`/api/v1/cases/${docket}/escalation`)
+      .set('Authorization', `Bearer ${staffToken}`);
+    expect(caseEscalationRes.status).toBe(200);
+    expect(caseEscalationRes.body.data.status).toBe('available');
+    expect(caseEscalationRes.body.data.result.risk_level).toBe('HIGH');
+    expect(caseEscalationRes.body.data.result.escalation_probability).toBe(68);
+  });
+
+  it('preserves crisis safety response and records alert on danger keywords', async () => {
+    vi.spyOn(ml, 'analyzeText').mockResolvedValue({
+      distressScore: 90,
+      recoveryScore: 10,
+      confidence: 0.95,
+      escalationProbability: 0.95,
+      modelName: 'saath-text-fusion-pipeline',
+      modelVersion: '1.0.0',
+      pipelineVersion: 'ml-api-analyze-text-v2',
+      signals: {},
+      contributingFactors: [],
+      crisis: true,
+      insufficientEvidence: false,
+      status: 'available',
+    });
+
+    const { token } = await connect();
+
+    const response = await request(app)
+      .post('/api/v1/ai/sahayak')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ message: 'I cannot go on anymore, I want to hurt myself.' });
+
+    expect(response.status).toBe(200);
+    expect(response.body.data.reply).toContain('safety matters right now more than anything else');
+    const alerts = store.records.get('alerts:all') ?? [];
+    expect(alerts.some((a: any) => a.crisis)).toBe(true);
+  });
+
+  it('generates varied replies without repetitive opening phrases and avoids asking questions on every turn', async () => {
+    // Test sequential conversation turns
+    const conversation: Array<{ role: 'user' | 'assistant'; text: string }> = [];
+
+    // Turn 1: Sleep difficulty
+    const reply1 = await sahayakService.generateSahayakReply({
+      message: 'I cannot sleep at night.',
+      history: conversation,
+      caseDetails: { stage: 'Investigation', daysUntilHearing: 14 },
+    });
+
+    // Verify reply 1 does not start with canned openers
+    expect(reply1).not.toMatch(/^(I understand|Thank you for sharing|That sounds difficult|I hear you|I'm so sorry|It sounds like)/i);
+    conversation.push({ role: 'user', text: 'I cannot sleep at night.' });
+    conversation.push({ role: 'assistant', text: reply1 });
+
+    // Turn 2: Continuing the conversation
+    const reply2 = await sahayakService.generateSahayakReply({
+      message: 'My mind just keeps racing about what happened.',
+      history: conversation,
+      caseDetails: { stage: 'Investigation', daysUntilHearing: 14 },
+    });
+
+    // Verify reply 2 does not repeat canned openers and does not repeat reply1
+    expect(reply2).not.toMatch(/^(I understand|Thank you for sharing|That sounds difficult|I hear you|I'm so sorry|It sounds like)/i);
+    expect(reply2).not.toBe(reply1);
+
+    // Turn 3: Expressing fatigue
+    conversation.push({ role: 'user', text: 'My mind just keeps racing about what happened.' });
+    conversation.push({ role: 'assistant', text: reply2 });
+
+    const reply3 = await sahayakService.generateSahayakReply({
+      message: 'I just feel so exhausted during the day.',
+      history: conversation,
+      caseDetails: { stage: 'Investigation', daysUntilHearing: 14 },
+    });
+
+    expect(reply3).not.toMatch(/^(I understand|Thank you for sharing|That sounds difficult|I hear you|I'm so sorry|It sounds like)/i);
+    expect(reply3).not.toBe(reply2);
+
+    // Verify that across the three turns, not every reply ends in a question
+    const questionsCount = [reply1, reply2, reply3].filter((r) => r.includes('?')).length;
+    expect(questionsCount).toBeLessThanOrEqual(2);
+  });
+
+  it('accurately answers factual questions about connected synthetic case NHAA-RJ-2026-004821 without guessing', async () => {
+    // Mock ML analysis for text checks
+    vi.spyOn(ml, 'analyzeText').mockResolvedValue({
+      distressScore: 50,
+      recoveryScore: 50,
+      confidence: 0.8,
+      escalationProbability: 0.3,
+      modelName: 'saath-text-fusion-pipeline',
+      modelVersion: '1.0.0',
+      pipelineVersion: 'ml-api-analyze-text-v2',
+      signals: {},
+      contributingFactors: [],
+      crisis: false,
+      insufficientEvidence: false,
+      status: 'available',
+    });
+
+    // 1. Connect session for docket NHAA-RJ-2026-004821
+    const { token, caseRecord } = await connect();
+    expect(caseRecord.docket).toBe('NHAA-RJ-2026-004821');
+
+    // Helper to send question to Sahayak endpoint
+    const askSahayak = async (message: string) => {
+      const res = await request(app)
+        .post('/api/v1/ai/sahayak')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ message });
+      expect(res.status).toBe(200);
+      return res.body.data.reply as string;
+    };
+
+    // Question 1: What is my case number?
+    const q1Reply = await askSahayak('What is my case number?');
+    expect(q1Reply).toContain('NHAA-RJ-2026-004821');
+    // Ensure no internal technical details exposed
+    expect(q1Reply).not.toMatch(/(distressScore|escalationProbability|gemini|render|modelVersion)/i);
+
+    // Question 2: Which state and district is my case from?
+    const q2Reply = await askSahayak('Which state and district is my case from?');
+    expect(q2Reply).toContain('Rajasthan');
+    expect(q2Reply).toContain('Jaipur');
+
+    // Question 3: What type of case do I have?
+    const q3Reply = await askSahayak('What type of case do I have?');
+    expect(q3Reply).toContain('Caste-based Violence');
+
+    // Question 4: What stage is my case currently in?
+    const q4Reply = await askSahayak('What stage is my case currently in?');
+    expect(q4Reply).toContain('Investigation');
+
+    // Question 5: What language have I selected?
+    const q5Reply = await askSahayak('What language have I selected?');
+    expect(q5Reply).toContain('Hindi');
+
+    // Question 6: Who is my assigned counsellor?
+    const q6Reply = await askSahayak('Who is my assigned counsellor?');
+    expect(q6Reply).toContain('Anjali Sharma');
+
+    // Question 7: What support or services are currently active for me?
+    const q7Reply = await askSahayak('What support or services are currently active for me?');
+    expect(q7Reply).toMatch(/Counsellor/i);
+    expect(q7Reply).toMatch(/Legal Aid/i);
+    expect(q7Reply).toMatch(/Protection/i);
+    expect(q7Reply).toMatch(/Financial Relief/i);
+
+    // Verify unavailable field handling (does not invent info)
+    const replyMissingField = await sahayakService.generateSahayakReply({
+      message: 'Who is my assigned counsellor?',
+      caseDetails: {
+        docket: 'TEST-001',
+        // assignedCounsellorName omitted
+      },
+    });
+    expect(replyMissingField).toContain('do not have an assigned counsellor');
+  });
+});
+

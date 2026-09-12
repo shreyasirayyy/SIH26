@@ -39,7 +39,11 @@ function daysUntil(date: string | null | undefined): number | string {
 }
 
 export function buildEscalationInput(userId: string, victimToken: string | undefined, latestMl?: any): Record<string, unknown> {
-  const records = store.records.get(`checkins:${userId}`) ?? [];
+  let records = store.records.get(`checkins:${userId}`) ?? [];
+  if (records.length === 0 && victimToken) {
+    const foundEntry = [...store.records.entries()].find(([k, v]) => k.startsWith('checkins:') && v.some((r: any) => r.victimToken === victimToken));
+    if (foundEntry) records = foundEntry[1];
+  }
   const latest = latestRecord(records);
   const previous = records.length > 1 ? records[records.length - 2] as Record<string, any> : undefined;
   const caseRecord = findCase(victimToken);
@@ -94,14 +98,22 @@ function unavailable(reason: 'not_configured' | 'invalid_response' | 'provider_e
 }
 
 export async function generateEscalation(userId: string, victimToken: string | undefined, latestMl?: any): Promise<EscalationState> {
-  if (!env.GEMINI_API_KEY) return unavailable('not_configured');
+  if (!env.GEMINI_API_KEY) {
+    const state = unavailable('not_configured');
+    saveEscalation(userId, state);
+    return state;
+  }
   try {
     const raw = await predictEscalation(buildEscalationInput(userId, victimToken, latestMl));
     if (typeof raw !== 'string' || !raw.trim()) throw new Error('Gemini returned no escalation result');
     const result = escalationResultSchema.parse(JSON.parse(raw));
-    return { status: 'available', result, generatedAt: new Date().toISOString() };
+    const state: EscalationState = { status: 'available', result, generatedAt: new Date().toISOString() };
+    saveEscalation(userId, state);
+    return state;
   } catch (error) {
-    return unavailable(error instanceof z.ZodError ? 'invalid_response' : 'provider_error');
+    const state = unavailable(error instanceof z.ZodError ? 'invalid_response' : 'provider_error');
+    saveEscalation(userId, state);
+    return state;
   }
 }
 
