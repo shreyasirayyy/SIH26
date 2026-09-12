@@ -162,14 +162,17 @@ export const MINIMIZATION_SCHEMA = {
   // in the payload — the phone number is only ever used server-side to match SMS replies,
   // never surfaced in an API response, even to the survivor it belongs to.
   survivorCaseView: [
-    'id', 'reference_id', 'docket_id', 'docket', 'isSynthetic', 'survivorName', 'registrationDate',
-    'registrationChannel', 'state', 'district', 'caseCategory', 'incidentDate', 'currentStage',
-    'firStatus', 'investigationStatus', 'chargesheetStatus', 'nextHearingDate', 'hearingCount',
+    'id', 'reference_id', 'docket_id', 'docket', 'isSynthetic', 'survivorName', 'registeredPhone',
+    'registrationDate', 'registrationChannel', 'state', 'district', 'city', 'caseCategory', 'incidentDate',
+    'currentStage', 'firStatus', 'investigationStatus', 'chargesheetStatus', 'nextHearingDate', 'hearingCount',
     'adjournmentCount', 'compensationStatus', 'compensationAmountApproved', 'compensationAmountReceived',
     'protectionStatus', 'relocationStatus', 'legalAidStatus', 'rehabilitationStatus', 'counsellorAssigned',
     'preferredLanguage', 'riskLevel', 'firDate', 'firNumber', 'investigatingOfficerId', 'pendingAmount',
     'threatLastReported', 'protectionOfficerAssigned', 'monitoringStarted', 'baselineDistressScore',
-    'currentDistressScore'
+    'currentDistressScore', 'assignedCounsellor', 'assignedCounsellorId', 'followupFrequency',
+    'complainantType', 'ageGroup', 'gender', 'monitoringConsent', 'preferredContactChannel', 'incidentCategory',
+    'complaintSummary', 'policeStation', 'districtNodalOfficerId', 'financialReliefEligible', 'lastPaymentDate',
+    'previousThreatReported', 'protectionRequested', 'relocationRequested', 'baselineCompleted', 'predicted7dScore'
   ] as const,
 } as const;
 

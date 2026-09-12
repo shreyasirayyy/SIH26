@@ -17,6 +17,22 @@ const STAGES = [
   { id: "Rehabilitation", label: "Rehabilitation" }
 ];
 
+const formatValue = (value: string | number | boolean | null | undefined, fallback = "Not available") => {
+  if (value === null || value === undefined || value === "") return fallback;
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  return String(value);
+};
+
+const formatDateValue = (value: string | null | undefined) => (value ? formatDate(value) : "Not available");
+
+const formatLocation = (city?: string, district?: string, state?: string) => {
+  if (city && district && state) return `${city}, ${district}, ${state}`;
+  if (city && district) return `${city}, ${district}`;
+  if (district && state) return `${district}, ${state}`;
+  if (city) return city;
+  return "Not available";
+};
+
 export default function MyCasePage() {
   const { victimToken, currentCase, monitoring, setMonitoring } = useAppStore();
   const [caseRecord, setCaseRecord] = useState<CaseRecord | null>(null);
@@ -63,6 +79,59 @@ export default function MyCasePage() {
   if (!caseRecord) return <div className="px-6 py-8 text-text-secondary">{error}</div>;
 
   const stageIndex = STAGES.findIndex(s => s.id === caseRecord.currentStage);
+  const detailRows = [
+    { label: "Case category", value: formatValue(caseRecord.caseCategory) },
+    { label: "Complainant type", value: formatValue(caseRecord.complainantType) },
+    { label: "Age group", value: formatValue(caseRecord.ageGroup) },
+    { label: "Gender", value: formatValue(caseRecord.gender) },
+    { label: "Registration channel", value: formatValue(caseRecord.registrationChannel) },
+    { label: "Preferred contact channel", value: formatValue(caseRecord.preferredContactChannel) },
+    { label: "Preferred language", value: formatValue(caseRecord.preferredLanguage) },
+    { label: "Registered mobile", value: formatValue(caseRecord.registeredPhone) },
+    { label: "Registration date", value: formatDateValue(caseRecord.registrationDate) },
+    { label: "Incident date", value: formatDateValue(caseRecord.incidentDate) },
+    { label: "Location", value: formatLocation(caseRecord.city, caseRecord.district, caseRecord.state) },
+    { label: "Incident category", value: formatValue(caseRecord.incidentCategory) },
+    { label: "Complaint summary", value: formatValue(caseRecord.complaintSummary) },
+    { label: "Stage started at", value: formatDateValue(caseRecord.stageStartedAt) },
+    { label: "Days in current stage", value: formatValue(caseRecord.daysInCurrentStage, "0") },
+    { label: "FIR status", value: formatValue(caseRecord.firStatus) },
+    { label: "FIR number", value: formatValue(caseRecord.firNumber) },
+    { label: "FIR date", value: formatDateValue(caseRecord.firDate) },
+    { label: "Police station", value: formatValue(caseRecord.policeStation) },
+    { label: "Investigating officer", value: formatValue(caseRecord.investigatingOfficerId) },
+    { label: "District nodal officer", value: formatValue(caseRecord.districtNodalOfficerId) },
+    { label: "Investigation status", value: formatValue(caseRecord.investigationStatus) },
+    { label: "Chargesheet status", value: formatValue(caseRecord.chargesheetStatus) },
+    { label: "Next hearing", value: formatDateValue(caseRecord.nextHearingDate) },
+    { label: "Hearing count", value: formatValue(caseRecord.hearingCount, "0") },
+    { label: "Adjournment count", value: formatValue(caseRecord.adjournmentCount, "0") },
+    { label: "Accused arrest status", value: formatValue(caseRecord.accusedArrestStatus) },
+    { label: "Previous threat reported", value: formatValue(caseRecord.previousThreatReported) },
+    { label: "Last threat reported", value: formatDateValue(caseRecord.threatLastReported) },
+    { label: "Financial relief eligible", value: formatValue(caseRecord.financialReliefEligible) },
+    { label: "Financial relief status", value: formatValue(caseRecord.compensationStatus) },
+    { label: "Approved amount", value: formatValue(caseRecord.compensationAmountApproved, "0") },
+    { label: "Disbursed amount", value: formatValue(caseRecord.compensationAmountReceived, "0") },
+    { label: "Last payment date", value: formatDateValue(caseRecord.lastPaymentDate) },
+    { label: "Pending amount", value: formatValue(caseRecord.pendingAmount, "0") },
+    { label: "Protection requested", value: formatValue(caseRecord.protectionRequested) },
+    { label: "Protection status", value: formatValue(caseRecord.protectionStatus) },
+    { label: "Relocation requested", value: formatValue(caseRecord.relocationRequested) },
+    { label: "Relocation status", value: formatValue(caseRecord.relocationStatus) },
+    { label: "Legal aid", value: formatValue(caseRecord.legalAidStatus) },
+    { label: "Rehabilitation", value: formatValue(caseRecord.rehabilitationStatus) },
+    { label: "Monitoring consent", value: formatValue(caseRecord.monitoringConsent) },
+    { label: "Monitoring started", value: formatDateValue(caseRecord.monitoringStarted) },
+    { label: "Baseline completed", value: formatValue(caseRecord.baselineCompleted) },
+    { label: "Baseline distress score", value: formatValue(caseRecord.baselineDistressScore, "Not assessed") },
+    { label: "Current distress score", value: formatValue(caseRecord.currentDistressScore, "Not assessed") },
+    { label: "Predicted 7-day score", value: formatValue(caseRecord.predicted7dScore, "Not assessed") },
+    { label: "Risk level", value: formatValue(caseRecord.riskLevel) },
+    { label: "Assigned counsellor", value: caseRecord.assignedCounsellor?.name || formatValue(caseRecord.assignedCounsellorId) },
+    { label: "Follow-up frequency", value: formatValue(caseRecord.followupFrequency) },
+    { label: "Support", value: caseRecord.assignedCounsellor?.name ? `Assigned counsellor: ${caseRecord.assignedCounsellor.name}` : caseRecord.counsellorAssigned && caseRecord.counsellorAssigned !== "Not assigned" ? `Counsellor assigned: ${caseRecord.counsellorAssigned}` : "Not yet assigned" },
+  ];
 
   return (
     <div className="px-6 py-8 space-y-6">
@@ -101,28 +170,9 @@ export default function MyCasePage() {
 
       <Card className="space-y-2">
         <CardTitle>Case Details</CardTitle>
-        <Row label="Case category" value={caseRecord.caseCategory || "Not available"} />
-        <Row label="Registered" value={caseRecord.registrationDate ? formatDate(caseRecord.registrationDate) : "Not available"} />
-        <Row label="Registration channel" value={caseRecord.registrationChannel || "Not available"} />
-        <Row label="Location" value={caseRecord.district && caseRecord.state ? `${caseRecord.district}, ${caseRecord.state}` : "Not available"} />
-        <Row label="Incident date" value={caseRecord.incidentDate ? formatDate(caseRecord.incidentDate) : "Not available"} />
-        <Row label="FIR" value={caseRecord.firStatus || "Not registered"} />
-        <Row label="Investigation status" value={caseRecord.investigationStatus || "Not available"} />
-        <Row label="Chargesheet" value={caseRecord.chargesheetStatus || "Not available"} />
-        <Row label="Next milestone" value={caseRecord.nextHearingDate ? formatDate(caseRecord.nextHearingDate) : "No upcoming hearings"} />
-        <Row label="Hearing count" value={String(caseRecord.hearingCount ?? 0)} />
-        <Row label="Protection" value={caseRecord.protectionStatus || "Not requested"} />
-        <Row label="Compensation" value={caseRecord.compensationStatus || "Not assessed"} />
-        <Row label="Legal aid" value={caseRecord.legalAidStatus || "Not connected"} />
-        <Row label="Rehabilitation" value={caseRecord.rehabilitationStatus || "Not started"} />
-        <Row label="Preferred language" value={caseRecord.preferredLanguage || "Not available"} />
-        <Row label="Risk level" value={caseRecord.riskLevel || "Not assessed"} />
-        <Row
-          label="Support"
-          value={caseRecord.counsellorAssigned && caseRecord.counsellorAssigned !== "Not assigned"
-            ? `Counsellor assigned: ${caseRecord.counsellorAssigned}`
-            : "Not yet assigned"}
-        />
+        {detailRows.map(({ label, value }) => (
+          <Row key={label} label={label} value={value} />
+        ))}
       </Card>
 
       {timeline.length > 0 && (
