@@ -15,14 +15,22 @@ export default function JourneyPage() {
     });
   }, []);
 
+  // Convert distress → calm score (higher = better feeling, which is more intuitive for the user)
   const points = history.slice(-8).map((h: any) => {
-    const score = h.ml?.distressScore ?? 50;
-    return score;
+    const distress = h.ml?.distressScore ?? 50;
+    return Math.round(100 - distress); // calm score: higher = feeling better
   });
   console.log("History:", history);
-  console.log("Points:", points);
-  const latestMood = history.length > 0 ? history[history.length - 1].ml?.distressScore : null;
-  const moodLabel = latestMood === null ? "Your rhythm will appear here as you check in" : latestMood > 70 ? "A harder stretch right now" : latestMood > 40 ? "Taking it day by day" : "Feeling a little steadier";
+  console.log("Calm points:", points);
+  const latestDistress = history.length > 0 ? history[history.length - 1].ml?.distressScore : null;
+  const moodLabel =
+    latestDistress === null
+      ? "Your rhythm will appear here as you check in"
+      : latestDistress < 30
+      ? "Feeling calm and steady 🌿"
+      : latestDistress < 55
+      ? "Finding your ground, one day at a time"
+      : "You showed up — that takes strength";
 
   return (
     <div className="px-5 pb-10 md:px-10 xl:px-14">
@@ -77,8 +85,8 @@ export default function JourneyPage() {
 // ─── Rhythm Chart ────────────────────────────────────────────────────────────
 
 function RhythmChart({ points, loading }: { points: number[]; loading: boolean }) {
-  // Demo data shown when no real history exists yet
-  const DEMO = [62, 55, 70, 48, 58, 44, 52, 40];
+  // Demo data: calm scores that gently improve over time (lower distress = higher calm)
+  const DEMO = [38, 42, 35, 48, 52, 55, 58, 63];
   const isDemo = points.length === 0;
   const raw = isDemo ? DEMO : points;
 
@@ -127,7 +135,7 @@ function RhythmChart({ points, loading }: { points: number[]; loading: boolean }
       <svg
         viewBox={`0 0 ${W} ${H + 28}`}
         className="w-full overflow-visible"
-        aria-label="Wellbeing rhythm chart"
+        aria-label="Your wellbeing rhythm over recent check-ins"
       >
         <defs>
           <linearGradient id="chartGrad" x1="0" y1="0" x2="0" y2="1">

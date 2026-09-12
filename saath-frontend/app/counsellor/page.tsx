@@ -9,6 +9,7 @@ import { aiService } from "@/services/ai";
 import { useAppStore } from "@/store/useAppStore";
 import { CaseRecord } from "@/types";
 import { ArrowRight, Bell, ClipboardList, Mic, UsersRound } from "lucide-react";
+import { TrendWidget } from "@/components/TrendWidget";
 
 const RISK_TONE: Record<string, "peach" | "amber" | "teal" | "sage" | "neutral"> = {
   CRITICAL: "peach",
@@ -209,6 +210,11 @@ export default function CounsellorOverviewPage() {
           </div>
         </section>
       )}
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <TrendWidget metric="distress" />
+        <TrendWidget metric="recovery" />
+      </div>
 
       <div className="grid grid-cols-3 gap-3">
         <Link href="/counsellor/my-cases" className="flex items-center gap-2 rounded-xl border border-border-color p-3 text-sm font-medium hover:border-deep-teal"><UsersRound size={16} /> My cases</Link>
