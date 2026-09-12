@@ -177,9 +177,9 @@ export function SurvivorHeader() {
 
                 <SectionGroup title="Page Zoom">
                   <div className="flex flex-wrap items-center gap-2">
-                    <button type="button" onClick={() => setAccessibility({ pageZoom: Math.max(80, accessibility.pageZoom - 10) })} className="rounded-lg border border-[#dfe8e4] bg-[#f4f6f3] px-2.5 py-1.5 text-xs font-semibold text-[#53615d]">−</button>
-                    <ChoicePill label="100%" selected={accessibility.pageZoom === 100} onClick={() => setAccessibility({ pageZoom: 100 })} />
-                    <button type="button" onClick={() => setAccessibility({ pageZoom: Math.min(150, accessibility.pageZoom + 10) })} className="rounded-lg border border-[#dfe8e4] bg-[#f4f6f3] px-2.5 py-1.5 text-xs font-semibold text-[#53615d]">+</button>
+                    <button type="button" aria-label="Decrease zoom" onClick={() => setAccessibility({ pageZoom: Math.max(80, accessibility.pageZoom - 10) })} className="rounded-lg border border-[#dfe8e4] bg-[#f4f6f3] px-2.5 py-1.5 text-xs font-semibold text-[#53615d] hover:bg-[#e8ece8] transition-colors">−</button>
+                    <ChoicePill label={`${accessibility.pageZoom}%`} selected={accessibility.pageZoom === 100} onClick={() => setAccessibility({ pageZoom: 100 })} />
+                    <button type="button" aria-label="Increase zoom" onClick={() => setAccessibility({ pageZoom: Math.min(150, accessibility.pageZoom + 10) })} className="rounded-lg border border-[#dfe8e4] bg-[#f4f6f3] px-2.5 py-1.5 text-xs font-semibold text-[#53615d] hover:bg-[#e8ece8] transition-colors">+</button>
                   </div>
                 </SectionGroup>
 
