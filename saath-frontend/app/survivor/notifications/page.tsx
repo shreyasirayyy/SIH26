@@ -190,13 +190,19 @@ export default function NotificationsPage() {
               <Bell size={13} className="text-deep-teal" />
               {hindi ? "सूचना केंद्र" : "Notification Centre"}
             </div>
-            <h1 className="mt-3 font-display text-3xl text-text-primary md:text-5xl">
-              {hindi ? "सूचनाएँ" : "Notifications"}
+            <h1 className="mt-3 font-editorial text-3xl tracking-tight text-text-primary md:text-5xl">
+              {hindi ? (
+                <>सूचनाएँ और <span className="italic text-deep-teal">अपडेट</span></>
+              ) : (
+                <>Notifications <span className="italic text-deep-teal">& Updates</span></>
+              )}
             </h1>
             <p className="mt-2 text-sm leading-relaxed text-text-secondary md:text-base">
-              {hindi
-                ? "आपके मामले, सहायता और स्वास्थ्य से जुड़े आवश्यक और अद्यतन संदेश"
-                : "Updates about your case, support, and wellbeing"}
+              {hindi ? (
+                <span>आपके मामले, सहायता और <strong className="font-semibold text-text-primary">स्वास्थ्य से जुड़े अद्यतन संदेश</strong></span>
+              ) : (
+                <span>Updates about your case, support, and <strong className="font-semibold text-text-primary">wellbeing</strong></span>
+              )}
             </p>
           </div>
 
@@ -373,10 +379,10 @@ export default function NotificationsPage() {
                             e.stopPropagation();
                             if (!n.read) void markNotificationRead(n.id);
                           }}
-                          className="inline-flex items-center gap-1 text-xs font-bold text-deep-teal hover:underline"
+                          className="group/link inline-flex items-center gap-1 text-xs font-semibold text-deep-teal hover:underline"
                         >
-                          {hindi ? meta.actionTextHi : meta.actionText}
-                          <ChevronRight size={14} />
+                          <span>{hindi ? meta.actionTextHi : meta.actionText}</span>
+                          <ChevronRight size={14} className="transition-transform duration-200 group-hover/link:translate-x-1" />
                         </Link>
 
                         {!n.read ? (

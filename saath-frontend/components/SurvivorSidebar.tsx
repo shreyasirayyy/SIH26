@@ -29,11 +29,11 @@ export function SurvivorSidebar() {
 
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-63 flex-col border-r border-border-color/65 bg-[color:var(--sidebar-background)]/90 px-5 py-7 backdrop-blur-xl md:flex xl:w-68">
-      <Link href="/survivor" className="flex items-center gap-3 px-2">
-        <span className="text-2xl text-[color:var(--accent-gold)]">✦</span>
+      <Link href="/survivor" className="flex items-center gap-3 px-2 group">
+        <span className="text-2xl text-[color:var(--accent-gold)] transition-transform duration-300 group-hover:rotate-12">✦</span>
         <div>
-          <div className="font-display text-[28px] font-bold leading-none text-[color:var(--primary-teal)]">SAATH</div>
-          <div className="mt-1 text-[10px] font-semibold uppercase tracking-[.22em] text-[color:var(--text-secondary)]">
+          <div className="font-editorial text-[27px] font-bold leading-none tracking-tight text-deep-teal">SAATH</div>
+          <div className="mt-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-text-secondary">
             {hindi ? "साथ, हर समय" : "with you, over time"}
           </div>
         </div>
