@@ -41,34 +41,55 @@ export default function BreathePage() {
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [isRunning, phaseIndex]);
 
-  const currentPhase = phaseIndex === -1 ? { label: "Ready" } : PHASES[phaseIndex];
+  const hindi = language === "Hindi";
+  const currentPhase = phaseIndex === -1 ? { label: hindi ? "तैयार" : "Ready" } : PHASES[phaseIndex];
+  const phaseLabel = phaseIndex === -1 ? (hindi ? "तैयार" : "Ready") : (
+    phaseIndex === 0 ? (hindi ? "साँस अंदर लें" : "Inhale") :
+    phaseIndex === 1 ? (hindi ? "रोकें" : "Hold") :
+    (hindi ? "साँस बाहर छोड़ें" : "Exhale")
+  );
 
   return (
     <div className="px-5 pb-10 md:px-10 xl:px-14">
       <Link href="/survivor/feel-better" className="inline-flex items-center gap-2 text-sm font-semibold text-[#75857f]">
-        <ArrowLeft size={16} /> Feel better
+        <ArrowLeft size={16} /> {hindi ? "बेहतर महसूस करें" : "Feel better"}
       </Link>
 
       <div className="mx-auto mt-10 max-w-2xl text-center">
-        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e5f2ec] text-[#327d70]"><Wind size={24} /></span>
-        <p className="mt-6 text-xs font-bold uppercase tracking-[.2em] text-[#7e918b]">A gentle breathing space</p>
-        <h1 className="mt-3 font-display text-5xl text-[#172326]">Follow your breath.</h1>
-        <p className="mt-4 text-lg text-[#63736e]">Inhale, hold, exhale. There is no need to force it.</p>
+        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e5f2ec] text-[#327d70]">
+          <Wind size={24} />
+        </span>
+        <p className="mt-6 text-xs font-bold uppercase tracking-[.2em] text-[#7e918b]">
+          {hindi ? "एक शांत श्वास स्थान" : "A gentle breathing space"}
+        </p>
+        <h1 className="mt-3 font-display text-5xl text-[#172326]">
+          {hindi ? "अपनी साँस पर ध्यान दें।" : "Follow your breath."}
+        </h1>
+        <p className="mt-4 text-lg text-[#63736e]">
+          {hindi ? "साँस अंदर लें, रोकें, बाहर छोड़ें। कोई ज़ोर लगाने की ज़रूरत नहीं है।" : "Inhale, hold, exhale. There is no need to force it."}
+        </p>
 
         <div className="mx-auto mt-12 flex h-56 w-56 items-center justify-center rounded-full bg-[#dcebdd] shadow-[0_0_0_25px_rgba(220,235,221,.45)]">
-          <div className="flex h-40 w-40 items-center justify-center rounded-full bg-[#bfe3d6] font-display text-2xl text-[#2e7468] transition-all">{currentPhase.label}</div>
+          <div className="flex h-40 w-40 items-center justify-center rounded-full bg-[#bfe3d6] font-display text-2xl text-[#2e7468] transition-all">
+            {phaseLabel}
+          </div>
         </div>
 
         <div className="mt-12 flex items-center justify-center gap-4">
           <button
             onClick={() => setIsRunning(!isRunning)}
-            className="rounded-full bg-[#0f766e] px-7 py-3 text-sm font-bold text-white"
+            className="rounded-full bg-[#0f766e] px-7 py-3 text-sm font-bold text-white shadow-sm"
           >
-            {isRunning ? "Pause" : phaseIndex === -1 ? "Begin" : "Resume"}
+            {isRunning
+              ? hindi ? "रोकें" : "Pause"
+              : phaseIndex === -1
+              ? hindi ? "शुरू करें" : "Begin"
+              : hindi ? "पुनः शुरू करें" : "Resume"}
           </button>
           <button
             onClick={() => setIsMuted(!isMuted)}
             className="rounded-full bg-[#e5f2ec] p-3 text-[#327d70]"
+            title={isMuted ? (hindi ? "आवाज़ चालू करें" : "Unmute") : (hindi ? "आवाज़ बंद करें" : "Mute")}
           >
             {isMuted ? <VolumeX size={20} /> : <Volume2 size={20} />}
           </button>
