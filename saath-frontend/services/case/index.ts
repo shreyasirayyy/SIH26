@@ -1,5 +1,5 @@
-import { CaseRecord, CounsellorProfile, TimelineEvent } from "@/types";
-import { apiRequest, setSession } from "@/lib/api";
+import { CaseRecord, CounsellorProfile, TimelineEvent, AdminReport, AdminTrends, CounsellorSummary } from "@/types";
+import { apiRequest, setSession, getSessionToken } from "@/lib/api";
 import { useAppStore } from "@/store/useAppStore";
 
 function normalizeCaseResult(result: { case?: CaseRecord; accessToken?: string } | CaseRecord): CaseRecord {
@@ -107,5 +107,41 @@ export const counsellorService = {
     const profile = await apiRequest<CounsellorProfile>("/api/v1/counsellor/me");
     useAppStore.getState().setCounsellorProfile(profile);
     return profile;
+  },
+};
+
+export const staffService = {
+  async getTrends(): Promise<AdminTrends> {
+    return apiRequest<AdminTrends>("/api/v1/admin/trends");
+  },
+
+  async getDistressStats() {
+    return apiRequest("/api/v1/admin/distress-stats");
+  },
+
+  async getRecoveryStats() {
+    return apiRequest("/api/v1/admin/recovery-stats");
+  },
+
+  async getOperationalMetrics() {
+    return apiRequest("/api/v1/admin/operational-metrics");
+  },
+
+  async getCounsellors(): Promise<CounsellorSummary[]> {
+    return apiRequest<CounsellorSummary[]>("/api/v1/admin/counsellors");
+  },
+
+  // Full bundled report — the single source of truth for Overview/Cases/Reports pages.
+  // This endpoint intentionally returns the raw report body (it doubles as a
+  // downloadable file, hence Content-Disposition: attachment) instead of the
+  // usual { success, data } envelope — so it can't go through apiRequest().
+  async getReport(): Promise<AdminReport> {
+    const token = getSessionToken();
+    const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+    const response = await fetch(`${base}/api/v1/admin/reports?scope=all`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    if (!response.ok) throw new Error(`Unable to load report (status ${response.status})`);
+    return response.json() as Promise<AdminReport>;
   },
 };
