@@ -1,4 +1,4 @@
-import { CaseRecord, TimelineEvent } from "@/types";
+import { CaseRecord, CounsellorProfile, TimelineEvent } from "@/types";
 import { apiRequest, setSession } from "@/lib/api";
 import { useAppStore } from "@/store/useAppStore";
 
@@ -74,7 +74,13 @@ export const caseService = {
     } catch { return []; }
   },
 
+  // The backend now scopes this to only the cases assigned to the
+  // authenticated counsellor, so despite the name this is really "my cases".
   async listAllCases(): Promise<CaseRecord[]> {
+    return apiRequest<CaseRecord[]>("/api/v1/counsellor/cases");
+  },
+
+  async getMyCases(): Promise<CaseRecord[]> {
     return apiRequest<CaseRecord[]>("/api/v1/counsellor/cases");
   },
 
@@ -83,5 +89,23 @@ export const caseService = {
       method: "POST",
       body: JSON.stringify(payload),
     });
+  },
+};
+
+export const counsellorService = {
+  async login(email: string, password: string): Promise<CounsellorProfile> {
+    const result = await apiRequest<{ accessToken: string; counsellor: CounsellorProfile }>(
+      "/api/v1/auth/counsellor-login",
+      { method: "POST", body: JSON.stringify({ email: email.trim(), password }) }
+    );
+    setSession(result.accessToken);
+    useAppStore.getState().setCounsellorProfile(result.counsellor);
+    return result.counsellor;
+  },
+
+  async getMe(): Promise<CounsellorProfile> {
+    const profile = await apiRequest<CounsellorProfile>("/api/v1/counsellor/me");
+    useAppStore.getState().setCounsellorProfile(profile);
+    return profile;
   },
 };

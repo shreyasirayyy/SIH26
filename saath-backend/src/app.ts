@@ -90,7 +90,33 @@ const requireMonitoringConsent=requireConsent('wellbeing_monitoring');
 app.get('/',(_req,res)=>ok(res,{service:'saath-backend',status:'ok',api:'/api/v1',health:'/health'}));
 app.get('/health',(_req,res)=>ok(res,{status:'ok',service:'saath-backend',dataMode:env.DATA_MODE,syntheticCaseAdapter:true}));
 app.get('/health/dependencies',asyncRoute(async(_req,res)=>ok(res,{supabase:env.DATA_MODE==='supabase'?'configured':'not_configured',ml_service:env.ML_SERVICE_URL?'configured':'not_configured',notifications:'not_configured'})));
-app.post('/api/v1/auth/staff-token',body(z.object({role:z.enum(['COUNSELLOR','DISTRICT_ADMIN','STATE_ADMIN','NATIONAL_ADMIN']),staffId:z.string().min(2)})),asyncRoute(async(req,res)=>{if(env.NODE_ENV!=='test'&&!env.ALLOW_DEV_STAFF_TOKEN) throw new AppError(403,'STAFF_TOKEN_DISABLED','Development staff tokens are disabled.'); return ok(res,{accessToken:signUser({id:req.body.staffId,role:req.body.role}),tokenType:'Bearer',user:{id:req.body.staffId,role:req.body.role}})}));
+// Dev-only backdoor — kept for admin roles (district/state/national demo access),
+// but COUNSELLOR is no longer issuable here: counsellors must authenticate via
+// /api/v1/auth/counsellor-login against the real synthetic-counsellors roster.
+app.post('/api/v1/auth/staff-token',body(z.object({role:z.enum(['DISTRICT_ADMIN','STATE_ADMIN','NATIONAL_ADMIN']),staffId:z.string().min(2)})),asyncRoute(async(req,res)=>{if(env.NODE_ENV!=='test'&&!env.ALLOW_DEV_STAFF_TOKEN) throw new AppError(403,'STAFF_TOKEN_DISABLED','Development staff tokens are disabled.'); return ok(res,{accessToken:signUser({id:req.body.staffId,role:req.body.role}),tokenType:'Bearer',user:{id:req.body.staffId,role:req.body.role}})}));
+
+// Real counsellor login — verifies email + password against the
+// synthetic-counsellors roster loaded into the store. The signed token's
+// `id` is the counsellor_id (e.g. "C001"), which is exactly what each case's
+// assignedCounsellorId is set to, so case-ownership checks line up directly.
+app.post('/api/v1/auth/counsellor-login',body(z.object({email:z.string().email(),password:z.string().min(1)})),asyncRoute(async(req,res)=>{
+  const email = req.body.email.trim().toLowerCase();
+  const counsellor = store.counsellors.find((c) => c.email.toLowerCase() === email);
+  if (!counsellor || counsellor.password !== req.body.password) throw new AppError(401,'INVALID_CREDENTIALS','Incorrect email or password.');
+  if (counsellor.status && counsellor.status !== 'Active') throw new AppError(403,'ACCOUNT_INACTIVE','This counsellor account is not active.');
+  counsellor.lastLogin = new Date().toISOString();
+  const accessToken = signUser({ id: counsellor.id, role: 'COUNSELLOR', state: counsellor.state });
+  const { password: _pw, ...safeCounsellor } = counsellor;
+  return ok(res, { accessToken, tokenType: 'Bearer', user: { id: counsellor.id, role: 'COUNSELLOR' }, counsellor: safeCounsellor });
+}));
+
+app.get('/api/v1/counsellor/me',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>{
+  const counsellor = store.counsellors.find((c) => c.id === req.user!.id);
+  if (!counsellor) throw new AppError(404,'COUNSELLOR_NOT_FOUND','Counsellor profile not found.');
+  const assignedCases = store.cases.filter((c) => c.assignedCounsellorId === counsellor.id);
+  const { password: _pw, ...safeCounsellor } = counsellor;
+  return ok(res, { ...safeCounsellor, casesAssigned: assignedCases.length });
+}));
 const safeCase = (c: any) => minimize({ ...c, reference_id:c.docket, docket_id:c.docket, docket:c.docket, isSynthetic:true }, MINIMIZATION_SCHEMA.survivorCaseView);
 const connectCaseByDocket = async (req: { body: { reference_id?: string; docket?: string } }, res: express.Response) => {
   const docket = (req.body.reference_id ?? req.body.docket ?? '').trim();
@@ -444,9 +470,11 @@ app.post('/api/v1/alerts/:id/:action',requireAuth,requireRoles('COUNSELLOR','DIS
     if (action === 'resolve') updateCrisisEventOutcome(crisisEntries, alert.id, { resolvedAt: now, outcome: 'human_review_completed', notes: req.body.note });
   }
   return ok(res,alert);}));
-app.get('/api/v1/counsellor/cases',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(_req,res)=>ok(res,store.cases)));
-app.get('/api/v1/counsellor/cases/:id',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req,res)=>{const c=store.cases.find(x=>x.id===req.params.id); if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); return ok(res,{case:c,view:'summary',timeline:store.timelines.filter(x=>x.caseId===c.id)});}));
-app.get('/api/v1/counsellor/cases/:id/:view',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req,res)=>{const c=store.cases.find(x=>x.id===req.params.id); if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); return ok(res,{case:c,view:String(req.params.view),timeline:store.timelines.filter(x=>x.caseId===c.id)});}));
+// Filtered to only the cases assigned to the authenticated counsellor —
+// previously returned store.cases unfiltered (every counsellor saw every case).
+app.get('/api/v1/counsellor/cases',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>ok(res,store.cases.filter(c=>c.assignedCounsellorId===req.user!.id))));
+app.get('/api/v1/counsellor/cases/:id',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>{const c=store.cases.find(x=>x.id===req.params.id); if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); if(c.assignedCounsellorId!==req.user!.id) throw new AppError(403,'FORBIDDEN','This case is not assigned to you.'); return ok(res,{case:c,view:'summary',timeline:store.timelines.filter(x=>x.caseId===c.id)});}));
+app.get('/api/v1/counsellor/cases/:id/:view',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>{const c=store.cases.find(x=>x.id===req.params.id); if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); if(c.assignedCounsellorId!==req.user!.id) throw new AppError(403,'FORBIDDEN','This case is not assigned to you.'); return ok(res,{case:c,view:String(req.params.view),timeline:store.timelines.filter(x=>x.caseId===c.id)});}));
 app.get('/api/v1/counsellor/voice-checkins',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(_req,res)=>{const items=[...store.records.entries()].flatMap(([key,values])=>values.filter((value:any)=>value.type==='voice').map((value:any)=>({id:value.id,submittedBy:key.replace('checkins:',''),victimToken:value.victimToken,createdAt:value.createdAt,analyticalState:value.analyticalState,transcript:value.transcript,analysis:value.ml}))); return ok(res,items)}));
 // CNS-03 — POST /counsellor/interventions: dedicated contract route (was previously
 // only reachable via the generic /counsellor/:resource catch-all below). Registered
