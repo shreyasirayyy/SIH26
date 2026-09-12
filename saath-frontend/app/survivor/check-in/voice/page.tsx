@@ -41,13 +41,17 @@ export default function VoiceCheckInPage() {
           } catch (e) {
             // ignore
           }
-          setState("Complete");
-        } catch {
+                    setState("Complete");
+        } catch (uploadError) {
+          console.error("Voice check-in upload failed:", uploadError);
           setState("Unavailable");
         }
       };
       current.start(); setState("Listening");
-    } catch { setState("Unavailable"); }
+    } catch (micError) {
+      console.error("Voice check-in microphone access failed:", micError);
+      setState("Unavailable");
+    }
   }
 
   const title = hindi ? "अपनी बात अपने समय पर कहें।" : "You can speak in your own time.";

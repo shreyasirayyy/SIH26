@@ -12,6 +12,7 @@ export interface CaseRecord {
   caseCategory: string;
   incidentDate: string;
   currentStage: "Registered" | "Investigation" | "Trial" | "Compensation" | "Rehabilitation";
+  riskLevel?: string;
   firStatus: string;
   investigationStatus: string;
   chargesheetStatus: string;

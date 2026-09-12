@@ -68,9 +68,14 @@ export const aiService = {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       body: form,
     });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error?.message ?? "Voice check-in is unavailable");
-    return payload.data;
+        let payload: { error?: { message?: string; code?: string }; data?: { id: string; processing?: string } };
+    try {
+      payload = await response.json();
+    } catch {
+      throw new Error(`Voice check-in is unavailable (status ${response.status}, no JSON body — check NEXT_PUBLIC_API_URL / CORS / backend is running)`);
+    }
+    if (!response.ok) throw new Error(`${payload.error?.code ?? "ERROR"}: ${payload.error?.message ?? "Voice check-in is unavailable"} (status ${response.status})`);
+    return payload.data!;
   },
 
   async getCheckInHistory() {
