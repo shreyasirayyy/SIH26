@@ -29,6 +29,13 @@ export const defaultSahayakConversation: SahayakMessage[] = [
   { role: "assistant", text: "Hi, I am Sahayak. I am here to listen. How have things been with your case or your day?" },
 ];
 
+export type TaaraMessage = {
+  id: string;
+  from: "taara" | "user";
+  text: string;
+  createdAt: string;
+};
+
 export interface AccessibilitySettings {
   textSize: AccessibilityTextSize;
   pageZoom: number;
@@ -88,6 +95,9 @@ interface AppState {
   accessibility: AccessibilitySettings;
   sahayakConversation: SahayakMessage[];
   followUps: FollowUpItem[];
+  // Keyed by victimToken so history stays scoped to whoever is logged in on
+  // this device and survives logout/login (persisted via localStorage below).
+  taaraConversations: Record<string, TaaraMessage[]>;
 
   setSurvivorSession: (opts: {
     victimToken: string;
@@ -107,6 +117,8 @@ interface AppState {
   resetSahayakConversation: () => void;
   addFollowUp: (item: FollowUpItem) => void;
   markFollowUpComplete: (id: string) => void;
+  appendTaaraMessage: (ownerKey: string, message: TaaraMessage) => void;
+  clearTaaraConversation: (ownerKey: string) => void;
   logout: () => void;
 }
 
@@ -127,6 +139,7 @@ export const useAppStore = create<AppState>()(
       accessibility: defaultAccessibilitySettings,
       sahayakConversation: defaultSahayakConversation,
       followUps: [],
+      taaraConversations: {},
 
       setSurvivorSession: ({ victimToken, docket, survivorName, accessToken, caseRecord }) =>
         set({
@@ -175,6 +188,17 @@ export const useAppStore = create<AppState>()(
       markFollowUpComplete: (id) =>
         set((state) => ({
           followUps: state.followUps.map((f) => (f.id === id ? { ...f, status: "COMPLETED" } : f)),
+        })),
+      appendTaaraMessage: (ownerKey, message) =>
+        set((state) => ({
+          taaraConversations: {
+            ...state.taaraConversations,
+            [ownerKey]: [...(state.taaraConversations[ownerKey] ?? []), message],
+          },
+        })),
+      clearTaaraConversation: (ownerKey) =>
+        set((state) => ({
+          taaraConversations: { ...state.taaraConversations, [ownerKey]: [] },
         })),
       logout: () =>
         set({

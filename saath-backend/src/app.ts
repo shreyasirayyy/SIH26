@@ -11,6 +11,7 @@ import { moderatePost } from './services/moderation.js';
 import { computeDistressStatistics, computeRecoveryStatistics, computeOperationalMetrics, generateAdminReport, buildAdminAggregatePayload } from './services/admin-stats.js';
 import { rankInterventions, shouldEscalateToCounsellor, type InterventionOutcomeRecord } from './services/interventions.js';
 import { generateSahayakReply, predictSahayak } from './services/sahayak.js';
+import { normalizeEmail, notificationProvider, deliverToContact, getEscalatedMessage } from './services/notifications.js';
 
 const app=express(); app.use(helmet()); app.use(cors({origin:(origin,cb)=>!origin||corsOrigins.includes(origin)?cb(null,true):cb(new Error('CORS denied'))})); app.use(express.json({limit:'1mb'})); app.use(requestId); app.use(rateLimit({windowMs:60_000,max:120,standardHeaders:true,legacyHeaders:false}));
 const body=(schema:z.ZodTypeAny)=>(req:AuthedRequest,_res:express.Response,next:express.NextFunction)=>{const parsed=schema.safeParse(req.body); if(!parsed.success) return next(new AppError(400,'VALIDATION_ERROR','Request validation failed',parsed.error.flatten())); req.body=parsed.data; next();};
@@ -60,9 +61,22 @@ const recordAlert = (payload: { victimToken?: string; caseReference?: string; re
   if (payload.crisis) {
     // N08 — every crisis-triggering alert gets its own audit trail entry, kept separate
     // from the generic alerts:all audit so it can be retained longer (see RETENTION_POLICY_DAYS).
+    notifySafeCircleOnCrisis(payload.victimToken, created.id).catch(() => {});
     logCrisisEvent(record, id, { alertId: created.id, victimToken: payload.victimToken, source: (payload.source as CrisisAuditEntry['source']) ?? 'manual' });
   }
   return created;
+};
+
+const notifySafeCircleOnCrisis = async (victimToken: string | undefined, alertId: string) => {
+  if (!victimToken) return;
+  const userId = [...store.users.entries()].find(([, user]) => user?.victimToken === victimToken)?.[0];
+  if (!userId) return;
+  const contacts = (store.records.get(`safe:${userId}`) || []).filter((c: any) => c.consentToContact);
+  const message = `This is a message from SAATH on behalf of your friend. They are going through a difficult moment — please reach out or be with them.`;
+  for (const contact of contacts) {
+    const results = await deliverToContact(contact, 'SAATH: your friend needs you', message);
+    record('safe_circle_events', { id: id(), contactId: contact.id, victimToken, trigger: 'crisis_alert', alertId, auto: true, channels: results, createdAt: new Date().toISOString() });
+  }
 };
 const recordAudit = (actor: string, action: string, target: string, details?: Record<string, unknown>) => record('audit:alerts', { id: id(), actor, action, target, details: details ?? {}, createdAt: new Date().toISOString() });
 
@@ -90,33 +104,7 @@ const requireMonitoringConsent=requireConsent('wellbeing_monitoring');
 app.get('/',(_req,res)=>ok(res,{service:'saath-backend',status:'ok',api:'/api/v1',health:'/health'}));
 app.get('/health',(_req,res)=>ok(res,{status:'ok',service:'saath-backend',dataMode:env.DATA_MODE,syntheticCaseAdapter:true}));
 app.get('/health/dependencies',asyncRoute(async(_req,res)=>ok(res,{supabase:env.DATA_MODE==='supabase'?'configured':'not_configured',ml_service:env.ML_SERVICE_URL?'configured':'not_configured',notifications:'not_configured'})));
-// Dev-only backdoor — kept for admin roles (district/state/national demo access),
-// but COUNSELLOR is no longer issuable here: counsellors must authenticate via
-// /api/v1/auth/counsellor-login against the real synthetic-counsellors roster.
-app.post('/api/v1/auth/staff-token',body(z.object({role:z.enum(['DISTRICT_ADMIN','STATE_ADMIN','NATIONAL_ADMIN']),staffId:z.string().min(2)})),asyncRoute(async(req,res)=>{if(env.NODE_ENV!=='test'&&!env.ALLOW_DEV_STAFF_TOKEN) throw new AppError(403,'STAFF_TOKEN_DISABLED','Development staff tokens are disabled.'); return ok(res,{accessToken:signUser({id:req.body.staffId,role:req.body.role}),tokenType:'Bearer',user:{id:req.body.staffId,role:req.body.role}})}));
-
-// Real counsellor login — verifies email + password against the
-// synthetic-counsellors roster loaded into the store. The signed token's
-// `id` is the counsellor_id (e.g. "C001"), which is exactly what each case's
-// assignedCounsellorId is set to, so case-ownership checks line up directly.
-app.post('/api/v1/auth/counsellor-login',body(z.object({email:z.string().email(),password:z.string().min(1)})),asyncRoute(async(req,res)=>{
-  const email = req.body.email.trim().toLowerCase();
-  const counsellor = store.counsellors.find((c) => c.email.toLowerCase() === email);
-  if (!counsellor || counsellor.password !== req.body.password) throw new AppError(401,'INVALID_CREDENTIALS','Incorrect email or password.');
-  if (counsellor.status && counsellor.status !== 'Active') throw new AppError(403,'ACCOUNT_INACTIVE','This counsellor account is not active.');
-  counsellor.lastLogin = new Date().toISOString();
-  const accessToken = signUser({ id: counsellor.id, role: 'COUNSELLOR', state: counsellor.state });
-  const { password: _pw, ...safeCounsellor } = counsellor;
-  return ok(res, { accessToken, tokenType: 'Bearer', user: { id: counsellor.id, role: 'COUNSELLOR' }, counsellor: safeCounsellor });
-}));
-
-app.get('/api/v1/counsellor/me',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>{
-  const counsellor = store.counsellors.find((c) => c.id === req.user!.id);
-  if (!counsellor) throw new AppError(404,'COUNSELLOR_NOT_FOUND','Counsellor profile not found.');
-  const assignedCases = store.cases.filter((c) => c.assignedCounsellorId === counsellor.id);
-  const { password: _pw, ...safeCounsellor } = counsellor;
-  return ok(res, { ...safeCounsellor, casesAssigned: assignedCases.length });
-}));
+app.post('/api/v1/auth/staff-token',body(z.object({role:z.enum(['COUNSELLOR','DISTRICT_ADMIN','STATE_ADMIN','NATIONAL_ADMIN']),staffId:z.string().min(2)})),asyncRoute(async(req,res)=>{if(env.NODE_ENV!=='test'&&!env.ALLOW_DEV_STAFF_TOKEN) throw new AppError(403,'STAFF_TOKEN_DISABLED','Development staff tokens are disabled.'); return ok(res,{accessToken:signUser({id:req.body.staffId,role:req.body.role}),tokenType:'Bearer',user:{id:req.body.staffId,role:req.body.role}})}));
 const safeCase = (c: any) => minimize({ ...c, reference_id:c.docket, docket_id:c.docket, docket:c.docket, isSynthetic:true }, MINIMIZATION_SCHEMA.survivorCaseView);
 const connectCaseByDocket = async (req: { body: { reference_id?: string; docket?: string } }, res: express.Response) => {
   const docket = (req.body.reference_id ?? req.body.docket ?? '').trim();
@@ -470,11 +458,9 @@ app.post('/api/v1/alerts/:id/:action',requireAuth,requireRoles('COUNSELLOR','DIS
     if (action === 'resolve') updateCrisisEventOutcome(crisisEntries, alert.id, { resolvedAt: now, outcome: 'human_review_completed', notes: req.body.note });
   }
   return ok(res,alert);}));
-// Filtered to only the cases assigned to the authenticated counsellor —
-// previously returned store.cases unfiltered (every counsellor saw every case).
-app.get('/api/v1/counsellor/cases',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>ok(res,store.cases.filter(c=>c.assignedCounsellorId===req.user!.id))));
-app.get('/api/v1/counsellor/cases/:id',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>{const c=store.cases.find(x=>x.id===req.params.id); if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); if(c.assignedCounsellorId!==req.user!.id) throw new AppError(403,'FORBIDDEN','This case is not assigned to you.'); return ok(res,{case:c,view:'summary',timeline:store.timelines.filter(x=>x.caseId===c.id)});}));
-app.get('/api/v1/counsellor/cases/:id/:view',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>{const c=store.cases.find(x=>x.id===req.params.id); if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); if(c.assignedCounsellorId!==req.user!.id) throw new AppError(403,'FORBIDDEN','This case is not assigned to you.'); return ok(res,{case:c,view:String(req.params.view),timeline:store.timelines.filter(x=>x.caseId===c.id)});}));
+app.get('/api/v1/counsellor/cases',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(_req,res)=>ok(res,store.cases)));
+app.get('/api/v1/counsellor/cases/:id',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req,res)=>{const c=store.cases.find(x=>x.id===req.params.id); if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); return ok(res,{case:c,view:'summary',timeline:store.timelines.filter(x=>x.caseId===c.id)});}));
+app.get('/api/v1/counsellor/cases/:id/:view',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req,res)=>{const c=store.cases.find(x=>x.id===req.params.id); if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); return ok(res,{case:c,view:String(req.params.view),timeline:store.timelines.filter(x=>x.caseId===c.id)});}));
 app.get('/api/v1/counsellor/voice-checkins',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(_req,res)=>{const items=[...store.records.entries()].flatMap(([key,values])=>values.filter((value:any)=>value.type==='voice').map((value:any)=>({id:value.id,submittedBy:key.replace('checkins:',''),victimToken:value.victimToken,createdAt:value.createdAt,analyticalState:value.analyticalState,transcript:value.transcript,analysis:value.ml}))); return ok(res,items)}));
 // CNS-03 — POST /counsellor/interventions: dedicated contract route (was previously
 // only reachable via the generic /counsellor/:resource catch-all below). Registered
@@ -647,7 +633,15 @@ app.delete('/api/v1/hope-vault/:id', requireAuth, asyncRoute(async (req: AuthedR
   items.splice(index, 1);
   return ok(res, { deleted: req.params.id });
 }));
-app.get('/api/v1/safe-circle',requireAuth,asyncRoute(async(req:AuthedRequest,res)=>ok(res,store.records.get(`safe:${req.user!.id}`)||[]))); app.post('/api/v1/safe-circle',requireAuth,body(z.object({name:z.string().min(1),phone:z.string().min(8),consentToContact:z.boolean()})),asyncRoute(async(req:AuthedRequest,res)=>ok(res,record(`safe:${req.user!.id}`,{id:id(),...req.body,phone:normalizePhone(req.body.phone)}),201))); app.patch('/api/v1/safe-circle/:id',requireAuth,body(z.record(z.unknown())),asyncRoute(async(req,res)=>ok(res,{id:req.params.id,...req.body}))); app.delete('/api/v1/safe-circle/:id',requireAuth,asyncRoute(async(req,res)=>ok(res,{deleted:req.params.id})));
+const safeCircleSchema = z.object({ name: z.string().min(1), relation: z.string().min(1), email: z.string().min(3), consentToContact: z.boolean() });
+app.get('/api/v1/safe-circle', requireAuth, asyncRoute(async (req: AuthedRequest, res) => ok(res, store.records.get(`safe:${req.user!.id}`) || [])));
+app.post('/api/v1/safe-circle', requireAuth, body(safeCircleSchema), asyncRoute(async (req: AuthedRequest, res) => {
+  const contact = record(`safe:${req.user!.id}`, { id: id(), ...req.body, email: normalizeEmail(req.body.email) });
+  const welcomeMessage = `Hi ${contact.name}, you've been added as a trusted ${String(contact.relation).toLowerCase()} on SAATH. You'll only hear from us again if they're going through a difficult moment and the app detects a genuine crisis signal.`;
+  const results = await deliverToContact(contact, "You've been added to someone's SAATH Safe Circle", welcomeMessage);
+  record('safe_circle_events', { id: id(), contactId: contact.id, victimToken: req.user!.victimToken, trigger: 'contact_added', channels: results, createdAt: new Date().toISOString() });
+  return ok(res, contact, 201);
+}));
 app.get('/api/v1/support/resources', requireAuth, asyncRoute(async (req: AuthedRequest, res) => {
   const category = req.query.category as string;
   const caseId = (store.records.get(`user:${req.user!.id}:cases`) || [])[0];
@@ -694,11 +688,11 @@ app.post('/api/v1/safe-circle/:id/notify', requireAuth, body(safeCircleNotifySch
     if (!hasOpenCrisisAlert) throw new AppError(409, 'CONDITION_NOT_MET', 'No open crisis alert exists for this survivor; notification condition not met.');
   }
 
-  const message = `This is a message from SAATH on behalf of your friend. They wanted you to know they're thinking of you.`;
-  await notificationProvider.sendMessage(contact.phone, message);
-  record('safe_circle_events', { id: id(), contactId: contact.id, victimToken: req.user!.victimToken, trigger: req.body.trigger, createdAt: new Date().toISOString() });
-  recordAudit(req.user!.id, 'safe_circle_notify', contact.id, { channel: 'sms', trigger: req.body.trigger });
-  return ok(res, { status: 'sent', trigger: req.body.trigger });
+    const message = `This is a message from SAATH on behalf of your friend. They wanted you to know they're thinking of you.`;
+  const results = await deliverToContact(contact, 'SAATH: a message from your friend', message);
+  record('safe_circle_events', { id: id(), contactId: contact.id, victimToken: req.user!.victimToken, trigger: req.body.trigger, channels: results, createdAt: new Date().toISOString() });
+  recordAudit(req.user!.id, 'safe_circle_notify', contact.id, { channels: results, trigger: req.body.trigger });
+  return ok(res, { status: 'sent', trigger: req.body.trigger, channels: results });
 }));
 
 app.post('/api/v1/community/posts', requireAuth, body(z.object({ body: z.string().min(1).max(5000), language: z.string().default('en') })), asyncRoute(async (req: AuthedRequest, res) => {
