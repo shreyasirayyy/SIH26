@@ -17,7 +17,12 @@ export default function SupportInfoPage() {
           can come back here to connect your case to SAATH.
         </p>
       </Card>
-      <Link href="/welcome" className="mt-6">
+      <a href="https://www.dosje.gov.in/organisation/national-helpline-against-atrocities/" target="_blank" rel="noopener noreferrer" className="mt-6 block">
+        <Button variant="primary" className="w-full">
+          Register your case here
+        </Button>
+      </a>
+      <Link href="/welcome" className="mt-3 block">
         <Button variant="secondary" className="w-full">
           Back
         </Button>

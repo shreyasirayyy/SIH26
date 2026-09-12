@@ -6,9 +6,10 @@ export interface CaseRecord {
   victimToken: string;
   survivorName: string;
   registrationDate: string;
-  registrationChannel: string;
+  registrationChannel?: string;
   state: string;
   district: string;
+  city?: string;
   caseCategory: string;
   incidentDate: string;
   currentStage: "Registered" | "Investigation" | "Trial" | "Compensation" | "Rehabilitation";
@@ -33,10 +34,35 @@ export interface CaseRecord {
     phone?: string;
   } | null;
   preferredLanguage: string;
-  assignedCounsellorId?: string | null;
-  followupFrequency?: string | null;
+  preferredContactChannel?: string;
+  complainantType?: string;
+  ageGroup?: string;
+  gender?: string;
+  monitoringConsent?: boolean;
+  incidentCategory?: string;
+  complaintSummary?: string;
+  firNumber?: string | null;
+  firDate?: string | null;
+  policeStation?: string;
+  investigatingOfficerId?: string;
+  districtNodalOfficerId?: string;
+  financialReliefEligible?: boolean;
+  lastPaymentDate?: string | null;
+  previousThreatReported?: boolean;
+  protectionRequested?: boolean;
+  relocationRequested?: boolean;
+  monitoringStarted?: string;
+  baselineCompleted?: boolean;
   baselineDistressScore?: number;
   currentDistressScore?: number;
+  predicted7dScore?: number;
+  assignedCounsellorId?: string | null;
+  followupFrequency?: string | null;
+  pendingAmount?: number;
+  registeredPhone?: string;
+  stageStartedAt?: string | null;
+  daysInCurrentStage?: number;
+  accusedArrestStatus?: string;
 }
 
 export interface CounsellorProfile {
