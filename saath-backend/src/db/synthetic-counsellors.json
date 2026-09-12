@@ -1,0 +1,62 @@
+[
+  {
+    "counsellor_id": "C001",
+    "name": "Anjali Sharma",
+    "email": "anjali@saath.com",
+    "phone": "9000000001",
+    "password": "saath123",
+    "specialisation": "Trauma and sexual violence",
+    "languages": "Hindi, English",
+    "state": "Delhi",
+    "role": "Counsellor",
+    "status": "Active",
+    "experience_years": 6,
+    "cases_assigned": 3,
+    "last_login": "2026-09-09 17:30:00"
+  },
+  {
+    "counsellor_id": "C002",
+    "name": "Ravi Kumar",
+    "email": "ravi@saath.com",
+    "phone": "9000000002",
+    "password": "saath123",
+    "specialisation": "Caste-based violence and social discrimination",
+    "languages": "Hindi, English",
+    "state": "Rajasthan",
+    "role": "Counsellor",
+    "status": "Active",
+    "experience_years": 8,
+    "cases_assigned": 3,
+    "last_login": "2026-09-09 16:45:00"
+  },
+  {
+    "counsellor_id": "C003",
+    "name": "Meena Das",
+    "email": "meena@saath.com",
+    "phone": "9000000003",
+    "password": "saath123",
+    "specialisation": "Grief, family loss and crisis support",
+    "languages": "Hindi, Bengali, English",
+    "state": "West Bengal",
+    "role": "Counsellor",
+    "status": "Active",
+    "experience_years": 5,
+    "cases_assigned": 2,
+    "last_login": "2026-09-09 15:20:00"
+  },
+  {
+    "counsellor_id": "C004",
+    "name": "Arjun Singh",
+    "email": "arjun@saath.com",
+    "phone": "9000000004",
+    "password": "saath123",
+    "specialisation": "Threat, intimidation and rehabilitation",
+    "languages": "Hindi, English",
+    "state": "Uttar Pradesh",
+    "role": "Counsellor",
+    "status": "Active",
+    "experience_years": 10,
+    "cases_assigned": 3,
+    "last_login": "2026-09-09 14:55:00"
+  }
+]

@@ -8,7 +8,7 @@
     "district": "South Delhi",
     "city": "New Delhi",
     "complainant_type": "victim",
-    "name_masked": "A****** R*****",
+    "name_masked": "Ananya Rao",
     "age_group": "18-25",
     "gender": "Woman",
     "registered_mobile_masked": "******4812",
@@ -55,6 +55,7 @@
     "current_distress_score": 72,
     "predicted_7d_score": 79,
     "risk_level": "HIGH",
+    "assigned_counsellor_id": "C001",
     "followup_frequency": "every_2_days"
   },
   {
@@ -66,7 +67,7 @@
     "district": "Jaipur",
     "city": "Jaipur",
     "complainant_type": "victim",
-    "name_masked": "S****** K******",
+    "name_masked": "Sunita Kumari",
     "age_group": "26-35",
     "gender": "Woman",
     "registered_mobile_masked": "******7812",
@@ -103,7 +104,7 @@
     "protection_status": "Under Review",
     "relocation_requested": false,
     "district_nodal_officer_id": "DO-391",
-    "counsellor_assigned": false,
+    "counsellor_assigned": true,
     "legal_aid_assigned": true,
     "protection_officer_assigned": true,
     "rehabilitation_status": "Not Started",
@@ -113,6 +114,7 @@
     "current_distress_score": 68,
     "predicted_7d_score": 77,
     "risk_level": "HIGH",
+    "assigned_counsellor_id": "C001",
     "followup_frequency": "every_3_days"
   },
   {
@@ -124,7 +126,7 @@
     "district": "Pune",
     "city": "Pune",
     "complainant_type": "family_member",
-    "name_masked": "R****** P*****",
+    "name_masked": "Rahul Patil",
     "age_group": "36-45",
     "gender": "Man",
     "registered_mobile_masked": "******2247",
@@ -171,6 +173,7 @@
     "current_distress_score": 75,
     "predicted_7d_score": 73,
     "risk_level": "HIGH",
+    "assigned_counsellor_id": "C001",
     "followup_frequency": "every_2_days"
   },
   {
@@ -182,7 +185,7 @@
     "district": "Lucknow",
     "city": "Lucknow",
     "complainant_type": "victim",
-    "name_masked": "M****** A*****",
+    "name_masked": "Mohit Verma",
     "age_group": "18-25",
     "gender": "Man",
     "registered_mobile_masked": "******9034",
@@ -229,6 +232,7 @@
     "current_distress_score": 55,
     "predicted_7d_score": 61,
     "risk_level": "MODERATE",
+    "assigned_counsellor_id": "C002",
     "followup_frequency": "every_5_days"
   },
   {
@@ -240,7 +244,7 @@
     "district": "Chennai",
     "city": "Chennai",
     "complainant_type": "victim",
-    "name_masked": "K****** S******",
+    "name_masked": "Kavitha Subramaniam",
     "age_group": "46-55",
     "gender": "Woman",
     "registered_mobile_masked": "******1156",
@@ -287,6 +291,7 @@
     "current_distress_score": 82,
     "predicted_7d_score": 88,
     "risk_level": "CRITICAL",
+    "assigned_counsellor_id": "C002",
     "followup_frequency": "daily"
   },
   {
@@ -298,7 +303,7 @@
     "district": "Bengaluru Urban",
     "city": "Bengaluru",
     "complainant_type": "victim",
-    "name_masked": "N****** H*****",
+    "name_masked": "Naveen Hedge",
     "age_group": "26-35",
     "gender": "Man",
     "registered_mobile_masked": "******6671",
@@ -345,6 +350,7 @@
     "current_distress_score": 49,
     "predicted_7d_score": 52,
     "risk_level": "MODERATE",
+    "assigned_counsellor_id": "C002",
     "followup_frequency": "every_5_days"
   },
   {
@@ -356,7 +362,7 @@
     "district": "Patna",
     "city": "Patna",
     "complainant_type": "victim",
-    "name_masked": "P****** D*****",
+    "name_masked": "Prakash Das",
     "age_group": "36-45",
     "gender": "Man",
     "registered_mobile_masked": "******3498",
@@ -393,7 +399,7 @@
     "protection_status": "Active",
     "relocation_requested": false,
     "district_nodal_officer_id": "DO-088",
-    "counsellor_assigned": false,
+    "counsellor_assigned": true,
     "legal_aid_assigned": true,
     "protection_officer_assigned": true,
     "rehabilitation_status": "Community Rehabilitation Referral",
@@ -403,6 +409,7 @@
     "current_distress_score": 71,
     "predicted_7d_score": 76,
     "risk_level": "HIGH",
+    "assigned_counsellor_id": "C003",
     "followup_frequency": "every_3_days"
   },
   {
@@ -414,7 +421,7 @@
     "district": "Kolkata",
     "city": "Kolkata",
     "complainant_type": "victim",
-    "name_masked": "T****** M*****",
+    "name_masked": "Tania Mukherjee",
     "age_group": "18-25",
     "gender": "Woman",
     "registered_mobile_masked": "******5209",
@@ -461,6 +468,7 @@
     "current_distress_score": 74,
     "predicted_7d_score": 83,
     "risk_level": "HIGH",
+    "assigned_counsellor_id": "C003",
     "followup_frequency": "every_2_days"
   },
   {
@@ -472,7 +480,7 @@
     "district": "Ahmedabad",
     "city": "Ahmedabad",
     "complainant_type": "victim",
-    "name_masked": "J****** P*****",
+    "name_masked": "Jayesh Parmar",
     "age_group": "56-65",
     "gender": "Man",
     "registered_mobile_masked": "******8843",
@@ -509,7 +517,7 @@
     "protection_status": "Not Requested",
     "relocation_requested": false,
     "district_nodal_officer_id": "DO-709",
-    "counsellor_assigned": false,
+    "counsellor_assigned": true,
     "legal_aid_assigned": true,
     "protection_officer_assigned": false,
     "rehabilitation_status": "Benefits Access Referral",
@@ -519,6 +527,7 @@
     "current_distress_score": 40,
     "predicted_7d_score": 44,
     "risk_level": "LOW",
+    "assigned_counsellor_id": "C004",
     "followup_frequency": "every_7_days"
   },
   {
@@ -530,7 +539,7 @@
     "district": "Bhubaneswar",
     "city": "Bhubaneswar",
     "complainant_type": "family_member",
-    "name_masked": "L****** N*****",
+    "name_masked": "Laxmi Naik",
     "age_group": "26-35",
     "gender": "Woman",
     "registered_mobile_masked": "******3015",
@@ -577,6 +586,7 @@
     "current_distress_score": 84,
     "predicted_7d_score": 86,
     "risk_level": "CRITICAL",
+    "assigned_counsellor_id": "C004",
     "followup_frequency": "daily"
   },
   {
@@ -588,7 +598,7 @@
     "district": "Ernakulam",
     "city": "Kochi",
     "complainant_type": "victim",
-    "name_masked": "M****** S*****",
+    "name_masked": "Manik Sagar",
     "age_group": "26-35",
     "gender": "Woman",
     "registered_mobile_masked": "******6428",
@@ -635,6 +645,7 @@
     "current_distress_score": 59,
     "predicted_7d_score": 64,
     "risk_level": "MODERATE",
+    "assigned_counsellor_id": "C004",
     "followup_frequency": "every_3_days"
   }
 ]
