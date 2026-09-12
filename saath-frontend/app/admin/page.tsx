@@ -1,107 +1,141 @@
 "use client";
 
-import { Card, CardTitle } from "@/components/ui/Card";
 import { useEffect, useState } from "react";
+import { Card, CardTitle } from "@/components/ui/Card";
+import { staffService } from "@/services/case";
 import { aiService } from "@/services/ai";
-import { DEMO_ADMIN_TRENDS } from "@/data/demo/cases";
 import { useAppStore } from "@/store/useAppStore";
+import { AdminReport } from "@/types";
 import {
-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
+  BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,
 } from "recharts";
 
 const COLORS = ["#0F766E", "#2FA6A0", "#7FAF86", "#E89A78", "#5B8DB8"];
+const RISK_ORDER = ["CRITICAL", "HIGH", "MODERATE", "LOW"];
 
-export default function AdminDashboardPage() {
-  const { districts, monthlyDistressTrend, interventionCoverage } = DEMO_ADMIN_TRENDS;
+function msToHours(ms: number | null | undefined) {
+  if (!ms) return "—";
+  return `${Math.round(ms / 3_600_000)}h`;
+}
+
+export default function AdminOverviewPage() {
   const role = useAppStore((state) => state.role);
   const scope = role === "district" ? "District" : role === "state" ? "State" : "National";
-  const totalCaseload = districts.reduce((s, d) => s + d.caseload, 0);
-  const totalHighPriority = districts.reduce((s, d) => s + d.highPriority, 0);
+
+  const [report, setReport] = useState<AdminReport | null>(null);
   const [assessments, setAssessments] = useState<Awaited<ReturnType<typeof aiService.getSahayakAssessments>>>([]);
-  useEffect(() => { void aiService.getSahayakAssessments().then(setAssessments).catch(() => setAssessments([])); }, []);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    staffService.getReport().then(setReport).catch(() => setError("Unable to load the aggregate dashboard right now."))
+      .finally(() => setLoading(false));
+    aiService.getSahayakAssessments().then(setAssessments).catch(() => setAssessments([]));
+  }, []);
+
+  const riskChartData = report
+    ? RISK_ORDER.map((level) => ({ level, count: report.distressStats.distressDistribution[level] ?? 0 }))
+    : [];
+
+  const stageChartData = report?.caseStats.stageStats ?? [];
 
   return (
     <div className="space-y-6">
       <div>
-        <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-deep-teal">{scope} administration</p><h1 className="mt-1 text-3xl font-semibold">Aggregated Overview</h1></div><span className="rounded-full bg-pale-sage px-3 py-1 text-xs font-bold text-deep-teal">Synthetic Demonstration Data</span></div>
+        <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[.18em] text-deep-teal">{scope} administration</p>
+            <h1 className="mt-1 text-3xl font-semibold">Aggregated Overview</h1>
+          </div>
+          <span className="rounded-full bg-pale-sage px-3 py-1 text-xs font-bold text-deep-teal">Synthetic Demonstration Data</span>
+        </div>
         <p className="mt-1 text-sm text-text-secondary">
-          {scope === "District" ? "Jaipur district operational view with case-level counts." : scope === "State" ? "Rajasthan state view with district comparisons." : "National view with aggregated intelligence only."}
+          Read-only, aggregated intelligence across the current caseload. No survivor names, tokens, or clinical detail are shown at this scope.
         </p>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <Stat label="Total caseload" value={totalCaseload} />
-        <Stat label="High-priority cases" value={totalHighPriority} />
-        <Stat label="Avg response (hrs)" value={Math.round(districts.reduce((s, d) => s + d.avgResponseHrs, 0) / districts.length)} />
-        <Stat label={scope === "National" ? "Districts with rising trends" : "Districts covered"} value={scope === "National" ? 8 : districts.length} />
-      </div>
+      {loading && <p className="text-sm text-text-secondary">Loading aggregate dashboard...</p>}
+      {error && <p className="text-sm text-warm-peach">{error}</p>}
 
-      {assessments.length > 0 && <Card><CardTitle>Sahayak escalation signals</CardTitle><p className="mt-1 text-xs text-text-secondary">Role-based view for authorized staff. Survivor-facing chat does not show these predictions.</p><div className="mt-4 grid gap-3 md:grid-cols-3">{assessments.slice(-6).reverse().map((assessment) => <div key={assessment.id} className="rounded-xl bg-greenish-cream p-4"><div className="flex items-center justify-between gap-2"><span className="text-xs font-semibold">{assessment.caseId ?? assessment.victimToken ?? "Case"}</span><span className="text-xs font-bold text-deep-teal">{assessment.prediction.risk_level}</span></div><p className="mt-2 text-2xl font-semibold text-deep-teal">{assessment.prediction.escalation_probability}%</p><p className="mt-1 text-xs text-text-secondary">Confidence {(assessment.prediction.confidence * 100).toFixed(0)}%</p></div>)}</div></Card>}
-
-      <div className="grid gap-4 lg:grid-cols-[1.25fr_.75fr]"><Card className="bg-deep-teal text-white"><CardTitle className="text-white">{scope === "District" ? "Today in Jaipur" : scope === "State" ? "Districts needing attention" : "National signal"}</CardTitle><div className="mt-5 grid gap-4 sm:grid-cols-3"><div><p className="text-3xl font-semibold">{scope === "District" ? "6" : scope === "State" ? "2" : "8"}</p><p className="mt-1 text-xs text-white/70">rising distress signals</p></div><div><p className="text-3xl font-semibold">{scope === "District" ? "14h" : scope === "State" ? "12h" : "16h"}</p><p className="mt-1 text-xs text-white/70">median alert response</p></div><div><p className="text-3xl font-semibold">{scope === "District" ? "71%" : scope === "State" ? "68%" : "74%"}</p><p className="mt-1 text-xs text-white/70">follow-up completion</p></div></div></Card><Card><CardTitle>Privacy boundary</CardTitle><p className="mt-3 text-sm leading-relaxed text-text-secondary">This workspace shows aggregated intelligence. Individual survivor names, detailed signals, and clinical labels are not available at {scope.toLowerCase()} scope.</p><div className="mt-4 flex items-center gap-2 text-xs font-semibold text-deep-teal"><span className="h-2 w-2 rounded-full bg-sage" />Role-based access active</div></Card></div>
-
-      <div className="grid md:grid-cols-2 gap-4">
-        <Card>
-          <CardTitle>Distress vs Recovery Trend</CardTitle>
-          <div className="mt-3 h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={monthlyDistressTrend}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#C8D3D0" />
-                <XAxis dataKey="month" fontSize={12} stroke="#46565A" />
-                <YAxis fontSize={12} stroke="#46565A" />
-                <Tooltip />
-                <Legend />
-                <Line type="monotone" dataKey="avgDistress" name="Avg Distress" stroke="#E89A78" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="avgRecovery" name="Avg Recovery" stroke="#0F766E" strokeWidth={2} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
+      {report && (
+        <>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            <Stat label="Total caseload" value={report.caseStats.caseCount} />
+            <Stat label="Critical / High risk" value={(report.distressStats.distressDistribution.CRITICAL ?? 0) + (report.distressStats.distressDistribution.HIGH ?? 0)} />
+            <Stat label="Open alerts" value={report.operationalMetrics.openAlerts} />
+            <Stat label="Avg. resolution time" value={msToHours(report.operationalMetrics.avgResolutionTimeMs)} isText />
           </div>
-        </Card>
 
-        <Card>
-          <CardTitle>Intervention Coverage</CardTitle>
-          <div className="mt-3 h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie data={interventionCoverage} dataKey="value" nameKey="name" outerRadius={90} label>
-                  {interventionCoverage.map((_, i) => (
-                    <Cell key={i} fill={COLORS[i % COLORS.length]} />
-                  ))}
-                </Pie>
-                <Tooltip />
-              </PieChart>
-            </ResponsiveContainer>
+          {assessments.length > 0 && (
+            <Card>
+              <CardTitle>Sahayak escalation signals</CardTitle>
+              <p className="mt-1 text-xs text-text-secondary">Role-based view for authorized staff. Survivor-facing chat does not show these predictions.</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3">
+                {assessments.slice(-6).reverse().map((assessment) => (
+                  <div key={assessment.id} className="rounded-xl bg-greenish-cream p-4">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-semibold">{assessment.caseId ?? assessment.victimToken ?? "Case"}</span>
+                      <span className="text-xs font-bold text-deep-teal">{assessment.prediction.risk_level}</span>
+                    </div>
+                    <p className="mt-2 text-2xl font-semibold text-deep-teal">{assessment.prediction.escalation_probability}%</p>
+                    <p className="mt-1 text-xs text-text-secondary">Confidence {(assessment.prediction.confidence * 100).toFixed(0)}%</p>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card>
+              <CardTitle>Risk distribution</CardTitle>
+              <div className="mt-3 h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={riskChartData} dataKey="count" nameKey="level" outerRadius={90} label>
+                      {riskChartData.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
+
+            <Card>
+              <CardTitle>Cases by stage</CardTitle>
+              <div className="mt-3 h-64">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={stageChartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#C8D3D0" />
+                    <XAxis dataKey="stage" fontSize={12} stroke="#46565A" />
+                    <YAxis fontSize={12} stroke="#46565A" allowDecimals={false} />
+                    <Tooltip />
+                    <Legend />
+                    <Bar dataKey="count" name="Cases" fill="#2FA6A0" radius={[6, 6, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </Card>
           </div>
-        </Card>
 
-        <Card className="md:col-span-2">
-          <CardTitle>Caseload &amp; High-Priority by District</CardTitle>
-          <div className="mt-3 h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={districts}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#C8D3D0" />
-                <XAxis dataKey="district" fontSize={12} stroke="#46565A" />
-                <YAxis fontSize={12} stroke="#46565A" />
-                <Tooltip />
-                <Legend />
-                <Bar dataKey="caseload" name="Total caseload" fill="#2FA6A0" radius={[6, 6, 0, 0]} />
-                <Bar dataKey="highPriority" name="High priority" fill="#E89A78" radius={[6, 6, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-      </div>
-
-      <Card><CardTitle>Audit log</CardTitle><div className="mt-3 divide-y divide-border-color text-sm">{[{ time: "09:31", actor: "COUNSELLOR_391", action: "VIEW_CASE", target: "VIC_8291", reason: "CRITICAL_ALERT_REVIEW" }, { time: "09:18", actor: "ADMIN_204", action: "VIEW_AGGREGATE", target: "RAJASTHAN", reason: "WEEKLY_RESPONSE_REVIEW" }].map((entry) => <div key={entry.time} className="grid gap-1 py-3 md:grid-cols-[70px_1fr_1fr_1.4fr]"><span className="text-text-secondary">{entry.time}</span><span className="font-medium">{entry.actor}</span><span>{entry.action} · {entry.target}</span><span className="text-text-secondary">{entry.reason}</span></div>)}</div></Card>
+          <Card>
+            <CardTitle>Privacy boundary</CardTitle>
+            <p className="mt-3 text-sm leading-relaxed text-text-secondary">
+              This workspace shows aggregated intelligence only. Individual survivor names, detailed signals, and clinical labels are not available at {scope.toLowerCase()} scope.
+            </p>
+            <div className="mt-4 flex items-center gap-2 text-xs font-semibold text-deep-teal">
+              <span className="h-2 w-2 rounded-full bg-sage" />Role-based access active
+            </div>
+          </Card>
+        </>
+      )}
     </div>
   );
 }
 
-function Stat({ label, value }: { label: string; value: number }) {
+function Stat({ label, value, isText }: { label: string; value: number | string; isText?: boolean }) {
   return (
     <Card>
-      <p className="text-2xl font-semibold text-deep-teal">{value}</p>
+      <p className={`font-semibold text-deep-teal ${isText ? "text-xl" : "text-2xl"}`}>{value}</p>
       <p className="mt-1 text-xs text-text-secondary">{label}</p>
     </Card>
   );

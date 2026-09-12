@@ -1,0 +1,191 @@
+warning: in the working copy of 'saath-backend/src/app.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'saath-frontend/app/admin/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'saath-frontend/app/counsellor/page.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'saath-frontend/components/StaffTopNav.tsx', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'saath-frontend/services/case/index.ts', LF will be replaced by CRLF the next time Git touches it
+warning: in the working copy of 'saath-frontend/types/index.ts', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/saath-backend/src/app.ts b/saath-backend/src/app.ts[m
+[1mindex 72e82e3..9739116 100644[m
+[1m--- a/saath-backend/src/app.ts[m
+[1m+++ b/saath-backend/src/app.ts[m
+[36m@@ -131,22 +131,6 @@[m [mapp.get('/api/v1/counsellor/me',requireAuth,requireRoles('COUNSELLOR'),asyncRout[m
+   return ok(res, { ...safeCounsellor, casesAssigned: assignedCases.length });[m
+ }));[m
+ const safeCase = (c: any) => minimize({ ...c, reference_id:c.docket, docket_id:c.docket, docket:c.docket, isSynthetic:true }, MINIMIZATION_SCHEMA.survivorCaseView);[m
+[31m-// Resolves assignedCounsellorId → the actual counsellor record (name/specialisation/phone).[m
+[31m-// Same logic as GET /api/v1/cases/:id — needed here too because connect-by-docket and[m
+[31m-// /cases/verify previously returned the raw case (only assignedCounsellorId, no resolved[m
+[31m-// counsellor object), so the survivor UI always showed "Counsellor not yet assigned"[m
+[31m-// even when a counsellor WAS assigned in the data.[m
+[31m-const withResolvedCounsellor = (c: any) => {[m
+[31m-  const assignedCounsellor = c.assignedCounsellorId[m
+[31m-    ? store.counsellors.find((x) => x.id === c.assignedCounsellorId)[m
+[31m-    : undefined;[m
+[31m-  return {[m
+[31m-    ...c,[m
+[31m-    assignedCounsellor: assignedCounsellor[m
+[31m-      ? { name: assignedCounsellor.name, specialisation: assignedCounsellor.specialisation, phone: assignedCounsellor.phone }[m
+[31m-      : null,[m
+[31m-  };[m
+[31m-};[m
+ const connectCaseByDocket = async (req: { body: { reference_id?: string; docket?: string } }, res: express.Response) => {[m
+   const docket = (req.body.reference_id ?? req.body.docket ?? '').trim();[m
+   const found = await findEligibleCase(docket);[m
+[36m@@ -154,12 +138,12 @@[m [mconst connectCaseByDocket = async (req: { body: { reference_id?: string; docket?[m
+   ensureUserRecord(user);[m
+   const accessToken = signUser(user);[m
+   record(`user:${user.id}:cases`, found.id);[m
+[31m-  return ok(res, { case: safeCase(withResolvedCounsellor(found)), accessToken, tokenType: 'Bearer', user:{id:user.id,role:user.role,victimToken:user.victimToken} });[m
+[32m+[m[32m  return ok(res, { case: safeCase(found), accessToken, tokenType: 'Bearer', user:{id:user.id,role:user.role,victimToken:user.victimToken} });[m
+ };[m
+ const caseReferenceSchema = z.object({ reference_id:z.string().min(3).optional(), docket:z.string().min(3).optional() }).refine(x=>Boolean(x.reference_id ?? x.docket), 'reference_id is required');[m
+ app.post('/api/v1/cases/connect-by-docket', body(caseReferenceSchema), asyncRoute(async (req, res) => connectCaseByDocket(req as any, res)));[m
+ app.post('/api/v1/cases/connect', body(caseReferenceSchema), asyncRoute(async (req, res) => connectCaseByDocket(req as any, res)));[m
+[31m-app.post('/api/v1/cases/verify', body(caseReferenceSchema), asyncRoute(async (req,res)=>{ const docket=(req.body.reference_id??req.body.docket).trim(); const found=await findEligibleCase(docket); return ok(res,{eligible:true,case:safeCase(withResolvedCounsellor(found))}); }));[m
+[32m+[m[32mapp.post('/api/v1/cases/verify', body(caseReferenceSchema), asyncRoute(async (req,res)=>{ const docket=(req.body.reference_id??req.body.docket).trim(); const found=await findEligibleCase(docket); return ok(res,{eligible:true,case:safeCase(found)}); }));[m
+ app.post('/api/v1/auth/refresh', asyncRoute(async (req, res) => {[m
+   const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');[m
+   if (!token) throw new AppError(401, 'UNAUTHORIZED', 'Authentication is required.');[m
+[36m@@ -185,7 +169,10 @@[m [mapp.get('/api/v1/cases/:id',requireAuth,asyncRoute(async(req:AuthedRequest,res)=[m
+   const c=store.cases.find(x=>x.id===req.params.id||x.victimToken===req.params.id||x.docket===req.params.id); [m
+   if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); [m
+   if(req.user!.role==='SURVIVOR'&&req.user!.victimToken!==c.victimToken&&!(store.records.get(`user:${req.user!.id}:cases`)||[]).includes(c.id)) throw new AppError(403,'FORBIDDEN','You can only access your own case.'); [m
+[31m-  return ok(res, withResolvedCounsellor(c));[m
+[32m+[m[32m  // Resolve the real counsellor record (name/specialisation/phone) instead of[m
+[32m+[m[32m  // leaving the survivor with just the boolean "Assigned"/"Not assigned" flag.[m
+[32m+[m[32m  const assignedCounsellor = c.assignedCounsellorId ? store.counsellors.find(x => x.id === c.assignedCounsellorId) : undefined;[m
+[32m+[m[32m  return ok(res, { ...c, assignedCounsellor: assignedCounsellor ? { name: assignedCounsellor.name, specialisation: assignedCounsellor.specialisation, phone: assignedCounsellor.phone } : null });[m
+ }));[m
+ app.get('/api/v1/cases/:id/escalation',requireAuth,requireRoles('COUNSELLOR','DISTRICT_ADMIN','STATE_ADMIN','NATIONAL_ADMIN'),asyncRoute(async(req,res)=>{[m
+   const c=store.cases.find(x=>x.id===req.params.id||x.victimToken===req.params.id||x.docket===req.params.id);[m
+[36m@@ -499,31 +486,7 @@[m [mapp.post('/api/v1/alerts/:id/:action',requireAuth,requireRoles('COUNSELLOR','DIS[m
+ app.get('/api/v1/counsellor/cases',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>ok(res,store.cases.filter(c=>c.assignedCounsellorId===req.user!.id))));[m
+ app.get('/api/v1/counsellor/cases/:id',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>{const c=store.cases.find(x=>x.id===req.params.id); if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); if(c.assignedCounsellorId!==req.user!.id) throw new AppError(403,'FORBIDDEN','This case is not assigned to you.'); return ok(res,{case:c,view:'summary',timeline:store.timelines.filter(x=>x.caseId===c.id)});}));[m
+ app.get('/api/v1/counsellor/cases/:id/:view',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>{const c=store.cases.find(x=>x.id===req.params.id); if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); if(c.assignedCounsellorId!==req.user!.id) throw new AppError(403,'FORBIDDEN','This case is not assigned to you.'); return ok(res,{case:c,view:String(req.params.view),timeline:store.timelines.filter(x=>x.caseId===c.id)});}));  [m
+[31m-app.get('/api/v1/counsellor/voice-checkins',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>{[m
+[31m-  const myVictimTokens=new Set(store.cases.filter(c=>c.assignedCounsellorId===req.user!.id).map(c=>c.victimToken));[m
+[31m-  const caseByToken=new Map(store.cases.map(c=>[c.victimToken,c]));[m
+[31m-  const items=[...store.records.entries()][m
+[31m-    .flatMap(([key,values])=>values[m
+[31m-      .filter((value:any)=>(value.type==='voice'||value.type==='ivrs')&&myVictimTokens.has(value.victimToken))[m
+[31m-      .map((value:any)=>{[m
+[31m-        const caseRecord=caseByToken.get(value.victimToken);[m
+[31m-        return {[m
+[31m-          id:value.id,[m
+[31m-          submittedBy:key.replace('checkins:',''),[m
+[31m-          victimToken:value.victimToken,[m
+[31m-          survivorName:caseRecord?.survivorName??'Unknown survivor',[m
+[31m-          docket:caseRecord?.docket,[m
+[31m-          createdAt:value.createdAt,[m
+[31m-          analyticalState:value.analyticalState,[m
+[31m-          channel:value.type,[m
+[31m-          requestCounsellorCall:!!value.requestCounsellorCall,[m
+[31m-          transcript:value.type==='ivrs'?`[Phone check-in] ${Object.entries(value.responses||{}).map(([q,a])=>`${q}: ${a}`).join('; ')}${value.requestCounsellorCall?' — counsellor call requested':''}`:value.transcript,[m
+[31m-          analysis:value.ml,[m
+[31m-        };[m
+[31m-      }))[m
+[31m-    .sort((a:any,b:any)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime());[m
+[31m-  return ok(res,items);[m
+[31m-}));[m
+[32m+[m[32mapp.get('/api/v1/counsellor/voice-checkins',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(_req,res)=>{const items=[...store.records.entries()].flatMap(([key,values])=>values.filter((value:any)=>value.type==='voice'||value.type==='ivrs').map((value:any)=>({id:value.id,submittedBy:key.replace('checkins:',''),victimToken:value.victimToken,createdAt:value.createdAt,analyticalState:value.analyticalState,channel:value.type,transcript:value.type==='ivrs'?`[Phone check-in] ${Object.entries(value.responses||{}).map(([q,a])=>`${q}: ${a}`).join('; ')}${value.requestCounsellorCall?' — counsellor call requested':''}`:value.transcript,analysis:value.ml}))).sort((a:any,b:any)=>new Date(b.createdAt).getTime()-new Date(a.createdAt).getTime()); return ok(res,items)}));[m
+ // CNS-03 — POST /counsellor/interventions: dedicated contract route (was previously[m
+ // only reachable via the generic /counsellor/:resource catch-all below). Registered[m
+ // BEFORE that catch-all so Express matches this specific path first.[m
+[36m@@ -606,6 +569,14 @@[m [mapp.get('/api/v1/admin/reports', requireAuth, requireRoles('DISTRICT_ADMIN', 'ST[m
+   return res.send(JSON.stringify(report, null, 2));[m
+ }));[m
+ [m
+[32m+[m[32m// Counsellor roster, scoped to the admin's own state (district admins share their[m
+[32m+[m[32m// state's roster since counsellors are assigned by state, not district). National[m
+[32m+[m[32m// admins see everyone. Passwords are stripped.[m
+[32m+[m[32mapp.get('/api/v1/admin/counsellors', requireAuth, requireRoles('DISTRICT_ADMIN', 'STATE_ADMIN', 'NATIONAL_ADMIN'), asyncRoute(async (req: AuthedRequest, res) => {[m
+[32m+[m[32m  const scoped = req.user!.role === 'NATIONAL_ADMIN' ? store.counsellors : store.counsellors.filter((c) => c.state === req.user!.state);[m
+[32m+[m[32m  return ok(res, scoped.map(({ password, ...safe }) => safe));[m
+[32m+[m[32m}));[m
+[32m+[m
+ app.post('/api/v1/ai/recommend',requireAuth,body(z.object({context:z.string().optional()})),asyncRoute(async(req:AuthedRequest,res)=>{[m
+   // K01 — Intervention engine backend: rank the catalogue using case context,[m
+   // the latest distress/recovery signal, and recent intervention outcomes,[m
+[36m@@ -875,4 +846,4 @@[m [mapp.post('/api/v1/notifications/taara-reengagement', requireAuth, asyncRoute(asy[m
+ }));[m
+ app.post('/api/v1/demo/reset',requireAuth,requireRoles('NATIONAL_ADMIN'),asyncRoute(async(_req,res)=>{if(env.NODE_ENV==='production') throw new AppError(404,'NOT_FOUND','Not found.'); store.records.clear(); store.users.clear(); store.blocklist.clear(); return ok(res,{reset:true,mode:'demo_only'});}));[m
+ function optionalCommunity(req:express.Request,_res:express.Response,next:express.NextFunction){next();}[m
+[31m-app.use((err:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{if(err instanceof multer.MulterError&&err.code==='LIMIT_FILE_SIZE') return fail(res,new AppError(413,'AUDIO_TOO_LARGE',`Audio must be no larger than ${env.UPLOAD_MAX_BYTES} bytes.`)); return fail(res,err instanceof Error?err:new Error('Unknown error'));}); export { app };[m
+[32m+[m[32mapp.use((err:unknown,_req:express.Request,res:express.Response,_next:express.NextFunction)=>{if(err instanceof multer.MulterError&&err.code==='LIMIT_FILE_SIZE') return fail(res,new AppError(413,'AUDIO_TOO_LARGE',`Audio must be no larger than ${env.UPLOAD_MAX_BYTES} bytes.`)); return fail(res,err instanceof Error?err:new Error('Unknown error'));}); export { app };[m
+\ No newline at end of file[m
+[1mdiff --git a/saath-frontend/app/admin/page.tsx b/saath-frontend/app/admin/page.tsx[m
+[1mindex e93cf1e..3658042 100644[m
+[1m--- a/saath-frontend/app/admin/page.tsx[m
+[1m+++ b/saath-frontend/app/admin/page.tsx[m
+[36m@@ -1,107 +1,141 @@[m
+ "use client";[m
+ [m
+[31m-import { Card, CardTitle } from "@/components/ui/Card";[m
+ import { useEffect, useState } from "react";[m
+[32m+[m[32mimport { Card, CardTitle } from "@/components/ui/Card";[m
+[32m+[m[32mimport { staffService } from "@/services/case";[m
+ import { aiService } from "@/services/ai";[m
+[31m-import { DEMO_ADMIN_TRENDS } from "@/data/demo/cases";[m
+ import { useAppStore } from "@/store/useAppStore";[m
+[32m+[m[32mimport { AdminReport } from "@/types";[m
+ import {[m
+[31m-  LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,[m
+[31m-  XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,[m
+[32m+[m[32m  BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend,[m
+ } from "recharts";[m
+ [m
+ const COLORS = ["#0F766E", "#2FA6A0", "#7FAF86", "#E89A78", "#5B8DB8"];[m
+[32m+[m[32mconst RISK_ORDER = ["CRITICAL", "HIGH", "MODERATE", "LOW"];[m
+[32m+[m
+[32m+[m[32mfunction msToHours(ms: number | null | undefined) {[m
+[32m+[m[32m  if (!ms) return "—";[m
+[32m+[m[32m  return `${Math.round(ms / 3_600_000)}h`;[m
+[32m+[m[32m}[m
+ [m
+[31m-export default function AdminDashboardPage() {[m
+[31m-  const { districts, monthlyDistressTrend, interventionCoverage } = DEMO_ADMIN_TRENDS;[m
+[32m+[m[32mexport default function AdminOverviewPage() {[m
+   const role = useAppStore((state) => state.role);[m
+   const scope = role === "district" ? "District" : role === "state" ? "State" : "National";[m
+[31m-  const totalCaseload = districts.reduce((s, d) => s + d.caseload, 0);[m
+[31m-  const totalHighPriority = districts.reduce((s, d) => s + d.highPriority, 0);[m
+[32m+[m
+[32m+[m[32m  const [report, setReport] = useState<AdminReport | null>(null);[m
+   const [assessments, setAssessments] = useState<Awaited<ReturnType<typeof aiService.getSahayakAssessments>>>([]);[m
+[31m-  useEffect(() => { void aiService.getSahayakAssessments().then(setAssessments).catch(() => setAssessments([])); }, []);[m
+[32m+[m[32m  const [loading, setLoading] = useState(true);[m
+[32m+[m[32m  const [error, setError] = useState<string | null>(null);[m
+[32m+[m
+[32m+[m[32m  useEffect(() => {[m
+[32m+[m[32m    staffService.getReport().then(setReport).catch(() => setError("Unable to load the aggregate dashboard right now."))[m
+[32m+[m[32m      .finally(() => setLoading(false));[m
+[32m+[m[32m    aiService.getSahayakAssessments().then(setAssessments).catch(() => setAssessments([]));[m
+[32m+[m[32m  }, []);[m
+[32m+[m
+[32m+[m[32m  const riskChartData = report[m
+[32m+[m[32m    ? RISK_ORDER.map((level) => ({ level, count: report.distressStats.distressDistribution[level] ?? 0 }))[m
+[32m+[m[32m    : [];[m
+[32m+[m
+[32m+[m[32m  const stageChartData = report?.caseStats.stageStats ?? [];[m
+ [m
+   return ([m
+     <div className="space-y-6">[m
+       <div>[m
+[31m-        <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-deep-teal">{scope} administration</p><h1 className="mt-1 text-3xl font-semibold">Aggregated Overview</h1></div><span className="rounded-full bg-pale-sage px-3 py-1 text-xs font-bold text-deep-teal">Synthetic Demonstration Data</span></div>[m
+[32m+[m[32m        <div className="flex flex-col justify-between gap-3 md:flex-row md:items-end">[m
+[32m+[m[32m          <div>[m
+[32m+[m[32m            <p className="text-xs font-bold uppercase tracking-[.18em] text-deep-teal">{scope} administration</p>[m
+[32m+[m[32m            <h1 className="mt-1 text-3xl font-semibold">Aggregated Overview</h1>[m
+[32m+[m[32m          </div>[m
+[32m+[m[32m          <span className="rounded-full bg-pale-sage px-3 py-1 text-xs font-bold text-deep-teal">Synthetic Demonstration Data</span>[m
+[32m+[m[32m        </div>[m
+         <p className="mt-1 text-sm text-text-secondary">[m
+[31m-          {scope === "District" ? "Jaipur district operational view with case-level counts." : scope === "State" ? "Rajasthan state view with district comparisons." : "National view with aggregated intelligence only."}[m
+[32m+[m[32m          Read-only, aggregated intelligence across the current caseload. No survivor names, tokens, or clinical detail are shown at this scope.[m
+         </p>[m
+       </div>[m
+ [m
+[31m-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">[m
+[31m-        <Stat label="Total caseload" value={totalCaseload} />[m
+[31m-        <Stat label="High-priority cases" value={totalHighPriority} />[m
+[31m-        <Stat label="Avg response (hrs)"
