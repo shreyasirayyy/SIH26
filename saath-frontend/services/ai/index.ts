@@ -3,21 +3,73 @@ import { EscalationEstimate } from "@/types/escalation";
 import { apiRequest } from "@/lib/api";
 
 export const aiService = {
-  async getSahayakPrediction(message: string, caseId?: string, conversation?: Array<{ role: "user" | "assistant"; text: string }>) {
-    return apiRequest<{ reply: string; supportAvailable: boolean }>("/api/v1/ai/sahayak", {
-      method: "POST",
-      body: JSON.stringify({ message, caseId, conversation: conversation?.slice(-8) }),
-    });
+  async getSahayakPrediction(
+    message: string,
+    caseId?: string,
+    conversation?: Array<{
+      role: "user" | "assistant";
+      text: string;
+    }>
+  ) {
+    return apiRequest<{ reply: string; supportAvailable: boolean }>(
+      "/api/v1/ai/sahayak",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          message,
+          caseId,
+          conversation: conversation?.slice(-8),
+        }),
+      }
+    );
   },
 
   async getSahayakAssessments() {
-    return apiRequest<Array<{ id: string; victimToken?: string; caseId?: string; message: string; signals?: { caseStage?: string; currentDistressScore?: number; previousDistressScore?: number; distressChange?: number; sleepQuality?: number; sentiment?: string; emotion?: string; daysUntilHearing?: number | null }; prediction: { escalation_probability: number; risk_level: "LOW" | "MODERATE" | "HIGH" | "CRITICAL"; confidence: number; contributing_factors: string[]; early_warning_signals: string[]; recommended_followup: string }; createdAt: string }>>("/api/v1/counsellor/sahayak-assessments");
+    return apiRequest<
+      Array<{
+        id: string;
+        victimToken?: string;
+        caseId?: string;
+        message: string;
+        signals?: {
+          caseStage?: string;
+          currentDistressScore?: number;
+          previousDistressScore?: number;
+          distressChange?: number;
+          sleepQuality?: number;
+          sentiment?: string;
+          emotion?: string;
+          daysUntilHearing?: number | null;
+        };
+        prediction: {
+          escalation_probability: number;
+          risk_level: "LOW" | "MODERATE" | "HIGH" | "CRITICAL";
+          confidence: number;
+          contributing_factors: string[];
+          early_warning_signals: string[];
+          recommended_followup: string;
+        };
+        createdAt: string;
+      }>
+    >("/api/v1/counsellor/sahayak-assessments");
   },
 
-  async createConsent(payload: { monitoring: boolean; voice?: boolean; text?: boolean; behavioural?: boolean; version?: string }) {
+  async createConsent(payload: {
+    monitoring: boolean;
+    voice?: boolean;
+    text?: boolean;
+    behavioural?: boolean;
+    version?: string;
+  }) {
     return apiRequest("/api/v1/consents", {
       method: "POST",
-      body: JSON.stringify({ monitoring: payload.monitoring, voice: payload.voice ?? false, text: payload.text ?? false, behavioural: payload.behavioural ?? false, version: payload.version ?? "1.0" }),
+      body: JSON.stringify({
+        monitoring: payload.monitoring,
+        voice: payload.voice ?? false,
+        text: payload.text ?? false,
+        behavioural: payload.behavioural ?? false,
+        version: payload.version ?? "1.0",
+      }),
     });
   },
 
@@ -25,19 +77,28 @@ export const aiService = {
     return apiRequest("/api/v1/consents");
   },
 
-  async updateMonitoring(action: "pause" | "resume" | "stop", reason?: string) {
+  async updateMonitoring(
+    action: "pause" | "resume" | "stop",
+    reason?: string
+  ) {
     return apiRequest(`/api/v1/monitoring/${action}`, {
       method: "POST",
-      body: JSON.stringify({ reason: reason ?? "" }),
+      body: JSON.stringify({
+        reason: reason ?? "",
+      }),
     });
   },
 
   async getCaseProfile(caseId: string) {
-    return apiRequest(`/api/v1/cases/${encodeURIComponent(caseId)}`);
+    return apiRequest(
+      `/api/v1/cases/${encodeURIComponent(caseId)}`
+    );
   },
 
   async getCaseTimeline(caseId: string) {
-    return apiRequest(`/api/v1/cases/${encodeURIComponent(caseId)}/timeline`);
+    return apiRequest(
+      `/api/v1/cases/${encodeURIComponent(caseId)}/timeline`
+    );
   },
 
   async submitMoodCheckIn(payload: Record<string, unknown>) {
@@ -48,33 +109,83 @@ export const aiService = {
   },
 
   async submitQuickMood(mood: number, label: string) {
-    return apiRequest("/api/v1/check-ins/quick-mood", { method: "POST", body: JSON.stringify({ mood, label }) });
+    return apiRequest("/api/v1/check-ins/quick-mood", {
+      method: "POST",
+      body: JSON.stringify({
+        mood,
+        label,
+      }),
+    });
   },
 
-  async submitTextCheckIn(payload: { text: string; language?: string; victimToken?: string }) {
+  async submitTextCheckIn(payload: {
+    text: string;
+    language?: string;
+    victimToken?: string;
+  }) {
     return apiRequest("/api/v1/check-ins/text", {
       method: "POST",
-      body: JSON.stringify({ ...payload, language: payload.language ?? "en" }),
+      body: JSON.stringify({
+        ...payload,
+        language: payload.language ?? "en",
+      }),
     });
   },
 
-  async submitVoiceCheckIn(audio: Blob, language = "en"): Promise<{ id: string; processing?: string }> {
+  async submitVoiceCheckIn(
+    audio: Blob,
+    language = "en"
+  ): Promise<{ id: string; processing?: string }> {
     const form = new FormData();
+
     form.append("audio", audio, "voice-check-in.webm");
     form.append("language", language);
-    const token = typeof window !== "undefined" ? window.localStorage.getItem("saath_access_token") : null;
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/api/v1/check-ins/voice`, {
-      method: "POST",
-      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
-      body: form,
-    });
-    let payload: { error?: { message?: string; code?: string }; data?: { id: string; processing?: string } };
+
+    const token =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("saath_access_token")
+        : null;
+
+    const response = await fetch(
+      `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000"}/api/v1/check-ins/voice`,
+      {
+        method: "POST",
+        headers: token
+          ? {
+              Authorization: `Bearer ${token}`,
+            }
+          : undefined,
+        body: form,
+      }
+    );
+
+    let payload: {
+      error?: {
+        message?: string;
+        code?: string;
+      };
+      data?: {
+        id: string;
+        processing?: string;
+      };
+    };
+
     try {
       payload = await response.json();
     } catch {
-      throw new Error(`Voice check-in is unavailable (status ${response.status}, no JSON body — check NEXT_PUBLIC_API_URL / CORS / backend is running)`);
+      throw new Error(
+        `Voice check-in is unavailable (status ${response.status}, no JSON body — check NEXT_PUBLIC_API_URL / CORS / backend is running)`
+      );
     }
-    if (!response.ok) throw new Error(`${payload.error?.code ?? "ERROR"}: ${payload.error?.message ?? "Voice check-in is unavailable"} (status ${response.status})`);
+
+    if (!response.ok) {
+      throw new Error(
+        `${payload.error?.code ?? "ERROR"}: ${
+          payload.error?.message ?? "Voice check-in is unavailable"
+        } (status ${response.status})`
+      );
+    }
+
     return payload.data!;
   },
 
@@ -97,14 +208,26 @@ export const aiService = {
     >("/api/v1/counsellor/voice-checkins");
   },
 
-  async sendTaaraMessage(message: string, caseId?: string): Promise<{ reply: string; safetyState: string; suggestedAction: string }> {
+  async sendTaaraMessage(
+    message: string,
+    caseId?: string
+  ): Promise<{
+    reply: string;
+    safetyState: string;
+    suggestedAction: string;
+  }> {
     return apiRequest("/api/v1/ai/taara", {
       method: "POST",
-      body: JSON.stringify({ message, caseId }),
+      body: JSON.stringify({
+        message,
+        caseId,
+      }),
     });
   },
 
-  async getMonitoring(kind: "distress" | "recovery" | "trends") {
+  async getMonitoring(
+    kind: "distress" | "recovery" | "trends"
+  ) {
     return apiRequest(`/api/v1/monitoring/${kind}`);
   },
 
@@ -112,71 +235,143 @@ export const aiService = {
     return apiRequest("/api/v1/interventions/recommendations");
   },
 
-  async startIntervention(payload: { type: string; caseId?: string; metadata?: Record<string, unknown> }) {
+  async startIntervention(payload: {
+    type: string;
+    caseId?: string;
+    metadata?: Record<string, unknown>;
+  }) {
     return apiRequest("/api/v1/interventions", {
       method: "POST",
       body: JSON.stringify(payload),
     });
   },
 
-  async submitInterventionFeedback(id: string, payload: { completed: boolean; rating?: number; note?: string }): Promise<InterventionFeedback> {
-    return apiRequest<InterventionFeedback>(`/api/v1/interventions/${encodeURIComponent(id)}/feedback`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
+  async submitInterventionFeedback(
+    id: string,
+    payload: {
+      completed: boolean;
+      rating?: number;
+      note?: string;
+    }
+  ): Promise<InterventionFeedback> {
+    return apiRequest<InterventionFeedback>(
+      `/api/v1/interventions/${encodeURIComponent(id)}/feedback`,
+      {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }
+    );
   },
 
-  async analyzeCheckIn(_checkIn: Partial<CheckIn>): Promise<{ acknowledged: boolean }> {
+  async analyzeCheckIn(
+    _checkIn: Partial<CheckIn>
+  ): Promise<{ acknowledged: boolean }> {
     return apiRequest("/api/v1/check-ins/mood", {
       method: "POST",
       body: JSON.stringify(_checkIn),
     });
   },
 
-  async getDistressTrajectory(victimToken: string): Promise<AiOutput[]> {
-    const result = await apiRequest<{ records?: Array<{ createdAt?: string; distressScore?: number; recoveryScore?: number; confidence?: number; contributingFactors?: Array<{ factor?: string }>; }> }>(`/api/v1/monitoring/distress?victimToken=${encodeURIComponent(victimToken)}`);
+  async getDistressTrajectory(
+    victimToken: string
+  ): Promise<AiOutput[]> {
+    const result = await apiRequest<{
+      records?: Array<{
+        createdAt?: string;
+        distressScore?: number;
+        recoveryScore?: number;
+        confidence?: number;
+        contributingFactors?: Array<{
+          factor?: string;
+        }>;
+      }>;
+    }>(
+      `/api/v1/monitoring/distress?victimToken=${encodeURIComponent(
+        victimToken
+      )}`
+    );
+
     return (result.records ?? []).map((item) => ({
       victimToken,
-      timestamp: item.createdAt ?? new Date().toISOString(),
+      timestamp:
+        item.createdAt ?? new Date().toISOString(),
       distressScore: item.distressScore ?? 0,
       recoveryScore: item.recoveryScore ?? 0,
-      confidence: (item.confidence ?? 0) >= 0.75 ? "High" : (item.confidence ?? 0) >= 0.5 ? "Moderate" : "Low",
+      confidence:
+        (item.confidence ?? 0) >= 0.75
+          ? "High"
+          : (item.confidence ?? 0) >= 0.5
+          ? "Moderate"
+          : "Low",
       escalationEstimate: "Stable",
       priorityLevel: "P4",
-      insufficientEvidence: (item.confidence ?? 0) < 0.5,
-      contributingSignals: (item.contributingFactors ?? []).map((factor) => factor.factor ?? "Signal unavailable"),
-      recommendedIntervention: "No recommendation available yet.",
+      insufficientEvidence:
+        (item.confidence ?? 0) < 0.5,
+      contributingSignals:
+        (item.contributingFactors ?? []).map(
+          (factor) =>
+            factor.factor ?? "Signal unavailable"
+        ),
+      recommendedIntervention:
+        "No recommendation available yet.",
     }));
   },
 
-  async getLatestEstimate(victimToken: string): Promise<AiOutput | null> {
-    const trajectory = await this.getDistressTrajectory(victimToken);
+  async getLatestEstimate(
+    victimToken: string
+  ): Promise<AiOutput | null> {
+    const trajectory =
+      await this.getDistressTrajectory(victimToken);
+
     const latest = trajectory.at(-1) ?? null;
-    if (!latest) return null;
+
+    if (!latest) {
+      return null;
+    }
+
     try {
       const history = await this.getCheckInHistory();
-      if (Array.isArray(history) && history.length < 2) latest.insufficientEvidence = true;
+
+      if (Array.isArray(history) && history.length < 2) {
+        latest.insufficientEvidence = true;
+      }
     } catch {
-      // non-fatal
+      // Non-fatal
     }
+
     return latest;
   },
 
-  async getExplanation(victimToken: string): Promise<string[]> {
-    const latest = await this.getLatestEstimate(victimToken);
+  async getExplanation(
+    victimToken: string
+  ): Promise<string[]> {
+    const latest =
+      await this.getLatestEstimate(victimToken);
+
     return latest?.contributingSignals ?? [];
   },
 
-  async getRecommendation(victimToken: string): Promise<string> {
-    const latest = await this.getLatestEstimate(victimToken);
-    return latest?.recommendedIntervention ?? "No recommendation available yet.";
+  async getRecommendation(
+    victimToken: string
+  ): Promise<string> {
+    const latest =
+      await this.getLatestEstimate(victimToken);
+
+    return (
+      latest?.recommendedIntervention ??
+      "No recommendation available yet."
+    );
   },
 
   async getHopeVault() {
     return apiRequest("/api/v1/hope-vault");
   },
 
-  async createHopeVaultItem(payload: { type: string; title: string; content: string }) {
+  async createHopeVaultItem(payload: {
+    type: string;
+    title: string;
+    content: string;
+  }) {
     return apiRequest("/api/v1/hope-vault", {
       method: "POST",
       body: JSON.stringify(payload),
@@ -184,29 +379,50 @@ export const aiService = {
   },
 
   async deleteHopeVaultItem(id: string) {
-    return apiRequest(`/api/v1/hope-vault/${encodeURIComponent(id)}`, { method: "DELETE" });
+    return apiRequest(
+      `/api/v1/hope-vault/${encodeURIComponent(id)}`,
+      {
+        method: "DELETE",
+      }
+    );
   },
 
   async getSafeCircle() {
     return apiRequest("/api/v1/safe-circle");
   },
 
-  async createSafeCircleItem(payload: { name: string; relation: string; email: string; consentToContact: boolean }) {
+  async createSafeCircleItem(payload: {
+    name: string;
+    relation: string;
+    email: string;
+    consentToContact: boolean;
+  }) {
     return apiRequest("/api/v1/safe-circle", {
       method: "POST",
       body: JSON.stringify(payload),
     });
   },
 
-  async updateSafeCircleItem(id: string, payload: Record<string, unknown>) {
-    return apiRequest(`/api/v1/safe-circle/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      body: JSON.stringify(payload),
-    });
+  async updateSafeCircleItem(
+    id: string,
+    payload: Record<string, unknown>
+  ) {
+    return apiRequest(
+      `/api/v1/safe-circle/${encodeURIComponent(id)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify(payload),
+      }
+    );
   },
 
   async deleteSafeCircleItem(id: string) {
-    return apiRequest(`/api/v1/safe-circle/${encodeURIComponent(id)}`, { method: "DELETE" });
+    return apiRequest(
+      `/api/v1/safe-circle/${encodeURIComponent(id)}`,
+      {
+        method: "DELETE",
+      }
+    );
   },
 
   async getSupportResources() {
@@ -217,34 +433,65 @@ export const aiService = {
     return apiRequest("/api/v1/community/posts");
   },
 
-  async createCommunityPost(payload: { body: string; language?: string }) {
+  async createCommunityPost(payload: {
+    body: string;
+    language?: string;
+  }) {
     return apiRequest("/api/v1/community/posts", {
       method: "POST",
-      body: JSON.stringify({ ...payload, language: payload.language ?? "en" }),
+      body: JSON.stringify({
+        ...payload,
+        language: payload.language ?? "en",
+      }),
     });
   },
 
-  async reportCommunityPost(id: string, reason: string) {
-    return apiRequest(`/api/v1/community/posts/${encodeURIComponent(id)}/report`, {
-      method: "POST",
-      body: JSON.stringify({ reason }),
-    });
+  async reportCommunityPost(
+    id: string,
+    reason: string
+  ) {
+    return apiRequest(
+      `/api/v1/community/posts/${encodeURIComponent(id)}/report`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          reason,
+        }),
+      }
+    );
   },
 
-  async getAdminSummary(scope: "district" | "state" | "national") {
+  async getAdminSummary(
+    scope: "district" | "state" | "national"
+  ) {
     return apiRequest(`/api/v1/admin/${scope}`);
   },
 
-  async createSafetyAlert(payload: { id?: string; level: string; title: string; caseName: string; docket?: string; reason?: string; confidence?: string; lastContact?: string; }) {
+  async createSafetyAlert(payload: {
+    id?: string;
+    level: string;
+    title: string;
+    caseName: string;
+    docket?: string;
+    reason?: string;
+    confidence?: string;
+    lastContact?: string;
+  }) {
     return apiRequest("/api/v1/alerts", {
       method: "POST",
       body: JSON.stringify(payload),
     });
   },
 
-  async getEscalationEstimate(victimToken: string): Promise<EscalationEstimate | null> {
+  async getEscalationEstimate(
+    victimToken: string
+  ): Promise<EscalationEstimate | null> {
     try {
-      return await apiRequest<EscalationEstimate>(`/api/v1/cases/${encodeURIComponent(victimToken)}/escalation`);
+      return await apiRequest<EscalationEstimate>(
+        `/api/v1/cases/${encodeURIComponent(
+          victimToken
+        )}/escalation`
+      );
     } catch {
       return null;
     }
