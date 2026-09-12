@@ -77,4 +77,11 @@ export const caseService = {
   async listAllCases(): Promise<CaseRecord[]> {
     return apiRequest<CaseRecord[]>("/api/v1/counsellor/cases");
   },
+
+  async createFollowUp(payload: { caseId: string; date: string; notes?: string }): Promise<{ followUpId: string }> {
+    return apiRequest<{ followUpId: string }>("/api/v1/counsellor/follow-ups", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
 };

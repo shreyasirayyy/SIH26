@@ -32,6 +32,16 @@ coverage/
 **/.DS_Store
 .DS_Store
 
+# Python
+**/__pycache__/
+*.py[cod]
+**/.venv/
+**/venv/
+
+# Local AI models and checkpoints
+**/pretrained_speech_emotion_model/
+**/wav2vec2_checkpoints/
+
 # Local AI-agent/editor artifacts
 **/.agents/
 **/.claude/

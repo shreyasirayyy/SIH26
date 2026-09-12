@@ -16,6 +16,10 @@ const DEMO_ACCOUNTS: { role: Role; label: string; id: string; backendRole: "COUN
   { role: "national", label: "Demo National Admin", id: "national@saath", backendRole: "NATIONAL_ADMIN" },
 ];
 
+// Split the flat list into two groups for the new two-box layout
+const COUNSELLOR_ACCOUNTS = DEMO_ACCOUNTS.filter((a) => a.role === "counsellor");
+const ADMIN_ACCOUNTS = DEMO_ACCOUNTS.filter((a) => a.role !== "counsellor");
+
 export default function StaffLoginPage() {
   const router = useRouter();
   const setStaffRole = useAppStore((s) => s.setStaffRole);
@@ -23,6 +27,9 @@ export default function StaffLoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Which group is expanded: null | "counsellor" | "admin"
+  const [openGroup, setOpenGroup] = useState<"counsellor" | "admin" | null>(null);
 
   async function loginAs(role: Role, backendRole?: "COUNSELLOR" | "DISTRICT_ADMIN" | "STATE_ADMIN" | "NATIONAL_ADMIN", staffId?: string) {
     setError(null);
@@ -46,6 +53,10 @@ export default function StaffLoginPage() {
     }
   }
 
+  function toggleGroup(group: "counsellor" | "admin") {
+    setOpenGroup((prev) => (prev === group ? null : group));
+  }
+
   return (
     <div className="flex-1 flex flex-col px-6 py-10 max-w-md mx-auto w-full">
       <p className="text-xs font-semibold text-amber uppercase tracking-wide">Secure staff access</p>
@@ -66,17 +77,63 @@ export default function StaffLoginPage() {
       </div>
 
       <p className="mt-8 text-sm font-medium text-text-secondary">Or continue with a staff role</p>
+
       <div className="mt-3 space-y-2">
-        {DEMO_ACCOUNTS.map((acc) => (
-          <Card
-            key={acc.id}
-            className="cursor-pointer hover:border-deep-teal"
-            onClick={() => void loginAs(acc.role, acc.backendRole, acc.id)}
-          >
-            <p className="text-sm font-medium">{acc.label}</p>
-            <p className="text-xs text-text-secondary">{acc.id}</p>
-          </Card>
-        ))}
+        {/* Counsellor box */}
+        <Card
+          className="cursor-pointer hover:border-deep-teal"
+          onClick={() => toggleGroup("counsellor")}
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">Counsellor</p>
+            <span className="text-xs text-text-secondary">
+              {openGroup === "counsellor" ? "▲" : "▼"}
+            </span>
+          </div>
+        </Card>
+
+        {openGroup === "counsellor" && (
+          <div className="pl-2 space-y-2 border-l-2 border-deep-teal/30 ml-1">
+            {COUNSELLOR_ACCOUNTS.map((acc) => (
+              <Card
+                key={acc.id}
+                className="cursor-pointer hover:border-deep-teal"
+                onClick={() => void loginAs(acc.role, acc.backendRole, acc.id)}
+              >
+                <p className="text-sm font-medium">{acc.label}</p>
+                <p className="text-xs text-text-secondary">{acc.id}</p>
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {/* Admin box */}
+        <Card
+          className="cursor-pointer hover:border-deep-teal"
+          onClick={() => toggleGroup("admin")}
+        >
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium">Admin</p>
+            <span className="text-xs text-text-secondary">
+              {openGroup === "admin" ? "▲" : "▼"}
+            </span>
+          </div>
+        </Card>
+
+        {openGroup === "admin" && (
+          <div className="pl-2 space-y-2 border-l-2 border-deep-teal/30 ml-1">
+            {ADMIN_ACCOUNTS.map((acc) => (
+              <Card
+                key={acc.id}
+                className="cursor-pointer hover:border-deep-teal"
+                onClick={() => void loginAs(acc.role, acc.backendRole, acc.id)}
+              >
+                <p className="text-sm font-medium">{acc.label}</p>
+                <p className="text-xs text-text-secondary">{acc.id}</p>
+              </Card>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
