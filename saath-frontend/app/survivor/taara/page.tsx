@@ -15,10 +15,9 @@ const PROMPTS = [
 ];
 
 export default function TaaraPage() {
-  const { survivorName, monitoring, currentCase } = useAppStore();
-  const [messages, setMessages] = useState<{ from: "taara" | "user"; text: string }[]>([
-    { from: "taara", text: `Hi ${survivorName ?? "there"}, I'm TAARA. I'm here whenever you want to talk.` },
-  ]);
+  const { survivorName, monitoring, currentCase, victimToken, taaraConversations, appendTaaraMessage } = useAppStore();
+  const ownerKey = victimToken ?? "guest";
+  const messages = taaraConversations[ownerKey] ?? [];
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,7 +35,12 @@ export default function TaaraPage() {
     if (!text || sending) return;
     setDraft("");
     setError(null);
-    setMessages((m) => [...m, { from: "user", text }]);
+    appendTaaraMessage(ownerKey, {
+      id: crypto.randomUUID(),
+      from: "user",
+      text,
+      createdAt: new Date().toISOString(),
+    });
     setSending(true);
     try {
       const result = await aiService.sendTaaraMessage(text, currentCase?.id);
@@ -47,7 +51,12 @@ export default function TaaraPage() {
         setCrisis(true);
         return;
       }
-      setMessages((m) => [...m, { from: "taara", text: result.reply }]);
+      appendTaaraMessage(ownerKey, {
+        id: crypto.randomUUID(),
+        from: "taara",
+        text: result.reply,
+        createdAt: new Date().toISOString(),
+      });
     } catch (e) {
       console.error(e);
       setError("TAARA is currently unavailable. Please try again later.");
@@ -78,8 +87,17 @@ export default function TaaraPage() {
       )}
 
       <div ref={scrollRef} className="mt-5 flex min-h-0 flex-1 flex-col space-y-3 overflow-y-auto px-1 pb-2 scrollbar-none">
-        {messages.map((m, i) => (
-          <div key={i} className={m.from === "taara" ? "flex" : "flex justify-end"}>
+        {messages.length === 0 && (
+          <div className="flex">
+            <div className="max-w-[88%] rounded-2xl rounded-tl-md border border-border-color/50 bg-white px-4 py-3 text-text-primary shadow-sm">
+              <p className="whitespace-pre-wrap text-sm leading-relaxed">
+                {`Hi ${survivorName ?? "there"}, I'm TAARA. I'm here whenever you want to talk.`}
+              </p>
+            </div>
+          </div>
+        )}
+        {messages.map((m) => (
+          <div key={m.id} className={m.from === "taara" ? "flex" : "flex justify-end"}>
             <div
               className={
                 m.from === "taara"

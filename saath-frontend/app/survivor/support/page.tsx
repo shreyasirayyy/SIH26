@@ -1,4 +1,124 @@
+"use client";
+import { useState } from "react";
 import Link from "next/link";
-import { ArrowRight, HeartHandshake, MapPinned, MessagesSquare, PhoneCall, ShieldCheck, UsersRound } from "lucide-react";
-const items = [{ href: "/survivor/support/counsellor", icon: PhoneCall, title: "Talk to a counsellor", desc: "Reach the person assigned to support your journey.", tone: "bg-[#e5f2ec] text-[#327d70]" }, { href: "/survivor/support/safe-circle", icon: HeartHandshake, title: "Safe Circle", desc: "Prepare a trusted person to be there when you need them.", tone: "bg-[#fff0e5] text-[#b56e4e]" }, { href: "/survivor/support/navigator", icon: MapPinned, title: "Support Navigator", desc: "Find legal, medical, protection, and rehabilitation resources.", tone: "bg-[#e8eef5] text-[#5b8db8]" }, { href: "/survivor/support/community", icon: UsersRound, title: "You Are Not Alone", desc: "A moderated anonymous community, off until you choose to enable it.", tone: "bg-[#eee8f5] text-[#8064a2]" }];
-export default function SupportPage() { return <div className="px-5 pb-10 md:px-10 xl:px-14"><div className="rounded-[30px] bg-[#0f766e] p-8 text-white md:p-12"><p className="text-xs font-bold uppercase tracking-[.2em] text-[#bde5d1]">Support</p><h1 className="mt-4 font-display text-5xl leading-none md:text-6xl">You do not have to carry this alone.</h1><p className="mt-5 max-w-2xl text-lg leading-relaxed text-white/75">Choose the kind of support that feels right today. A human, a resource, a trusted person, or simply a place to feel less alone.</p></div><div className="mt-8 grid gap-4 md:grid-cols-2">{items.map(({ href, icon: Icon, title, desc, tone }) => <Link href={href} key={title} className="surface group rounded-[26px] p-6 hover:-translate-y-1 hover:shadow-xl"><span className={`flex h-12 w-12 items-center justify-center rounded-2xl ${tone}`}><Icon size={21} /></span><h2 className="mt-6 font-display text-2xl text-[#243630]">{title}</h2><p className="mt-2 text-sm leading-relaxed text-[#6b7b75]">{desc}</p><span className="mt-6 inline-flex items-center gap-2 text-xs font-bold text-[#0f766e]">Explore <ArrowRight size={14} /></span></Link>)}</div><div className="mt-6 flex items-center gap-3 rounded-2xl bg-[#f4f6ec] p-4 text-sm text-[#5c6d66]"><ShieldCheck size={18} className="text-[#0f766e]" /> Support remains available even if monitoring is paused or stopped.</div></div>; }
+import { ArrowLeft, Check, HeartHandshake } from "lucide-react";
+import { aiService } from "@/services/ai";
+
+export default function SafeCirclePage() {
+  const [name, setName] = useState("");
+  const [relation, setRelation] = useState("Sister");
+  const [email, setEmail] = useState("");
+  const [consent, setConsent] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const canSubmit = name.trim() && relation.trim() && consent && email.trim();
+
+  async function handleSubmit() {
+    if (!canSubmit) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await aiService.createSafeCircleItem({
+        name: name.trim(),
+        relation: relation.trim(),
+        email: email.trim(),
+        consentToContact: consent,
+      });
+      setSent(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Couldn't save this contact. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="px-5 pb-10 md:px-10 xl:px-14">
+      <Link href="/survivor/support" className="inline-flex items-center gap-2 text-sm font-semibold text-[#75857f]">
+        <ArrowLeft size={16} /> Support
+      </Link>
+      <div className="mx-auto mt-9 max-w-3xl">
+        <p className="text-xs font-bold uppercase tracking-[.2em] text-[#7e918b]">Safe Circle</p>
+        <h1 className="mt-3 font-display text-5xl text-[#172326]">Choose someone who can be there.</h1>
+        <p className="mt-4 text-lg text-[#63736e]">
+          If SAATH ever detects a real crisis signal, this person will be emailed automatically so they can be there for you.
+        </p>
+
+        <div className="surface mt-10 rounded-[28px] p-7 md:p-10">
+          {sent ? (
+            <div className="py-10 text-center">
+              <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#dcebdd] text-[#3d8561]">
+                <Check size={28} />
+              </span>
+              <h2 className="mt-6 font-display text-3xl text-[#2b473b]">Your Safe Circle is ready.</h2>
+              <p className="mt-3 text-sm text-[#6b7b75]">You can pause, revoke, or change this person any time.</p>
+            </div>
+          ) : (
+            <>
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fff0e5] text-[#b56e4e]">
+                <HeartHandshake size={22} />
+              </span>
+              <h2 className="mt-6 font-display text-3xl text-[#263c35]">Add a trusted person</h2>
+
+              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                <label className="text-sm font-semibold text-[#51635b]">
+                  Name
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="mt-2 w-full rounded-xl border border-[#c8d3d0] bg-white px-4 py-3 font-normal outline-none focus:border-[#0f766e]"
+                    placeholder="e.g. Asha"
+                  />
+                </label>
+                <label className="text-sm font-semibold text-[#51635b]">
+                  Relationship
+                  <select
+                    value={relation}
+                    onChange={(e) => setRelation(e.target.value)}
+                    className="mt-2 w-full rounded-xl border border-[#c8d3d0] bg-white px-4 py-3 font-normal outline-none focus:border-[#0f766e]"
+                  >
+                    <option>Sister</option>
+                    <option>Friend</option>
+                    <option>Parent</option>
+                    <option>Other trusted person</option>
+                  </select>
+                </label>
+                <label className="text-sm font-semibold text-[#51635b] sm:col-span-2">
+                  Email
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="mt-2 w-full rounded-xl border border-[#c8d3d0] bg-white px-4 py-3 font-normal outline-none focus:border-[#0f766e]"
+                    placeholder="asha@example.com"
+                  />
+                </label>
+              </div>
+
+              <label className="mt-6 flex items-start gap-3 text-sm text-[#51635b]">
+                <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-1" />
+                <span>
+                  I understand {name.trim() || "this person"} may be emailed automatically, without asking me again each time, if SAATH detects a genuine crisis signal.
+                </span>
+              </label>
+
+              {error && <p className="mt-4 text-sm font-semibold text-[#b5473f]">{error}</p>}
+
+              <div className="mt-8 flex justify-end">
+                <button
+                  onClick={handleSubmit}
+                  disabled={!canSubmit || loading}
+                  className="rounded-full bg-[#0f766e] px-6 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {loading ? "Saving..." : "Save trusted person"}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
