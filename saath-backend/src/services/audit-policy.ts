@@ -166,7 +166,8 @@ export const MINIMIZATION_SCHEMA = {
     'incidentDate', 'currentStage', 'firStatus', 'investigationStatus', 'chargesheetStatus',
     'nextHearingDate', 'hearingCount', 'adjournmentCount', 'compensationStatus',
     'compensationAmountApproved', 'compensationAmountReceived', 'protectionStatus',
-    'relocationStatus', 'legalAidStatus', 'rehabilitationStatus', 'preferredLanguage',
+    'relocationStatus', 'legalAidStatus', 'rehabilitationStatus', 'counsellorAssigned',
+    'preferredLanguage',
   ] as const,
 } as const;
 
