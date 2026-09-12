@@ -52,24 +52,24 @@ export default function ConsentPage() {
         </ul>
       </Card>
 
-      <label className="mt-5 flex items-start gap-3 text-sm">
+      <label className="mt-5 flex items-start gap-3 text-sm leading-6">
         <input
           type="checkbox"
-          className="mt-1 h-5 w-5 accent-deep-teal"
+          className="mt-0.5 h-5 w-5 shrink-0 accent-deep-teal"
           checked={monitoringConsent}
           onChange={(e) => setMonitoringConsent(e.target.checked)}
         />
-        I understand and consent to monitoring.
+        <span>I understand and consent to monitoring.</span>
       </label>
 
-      <label className="mt-3 flex items-start gap-3 text-sm text-text-secondary">
+      <label className="mt-5 flex items-start gap-3 text-sm leading-6">
         <input
           type="checkbox"
-          className="mt-1 h-5 w-5 accent-deep-teal"
+          className="mt-0.5 h-5 w-5 shrink-0 accent-deep-teal"
           checked={voiceConsent}
           onChange={(e) => setVoiceConsent(e.target.checked)}
         />
-        I consent to optional voice-feature analysis (you can change this later).
+        <span>I consent to optional voice-feature analysis (you can change this later).</span>
       </label>
 
       <button className="mt-4 text-sm text-deep-teal underline text-left">View Privacy Notice</button>

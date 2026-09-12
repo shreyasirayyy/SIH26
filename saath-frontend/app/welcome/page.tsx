@@ -68,7 +68,7 @@ export default function WelcomePage() {
         <aside className="w-full rounded-[30px] border border-border-color/70 bg-[rgba(13,59,74,0.97)] p-5 shadow-[0_20px_60px_rgba(18,46,60,0.18)] md:p-7">
           <div className="mb-5 flex items-center justify-center">
             <span className="inline-flex items-center gap-2 rounded-full border border-[#b8d8d1]/40 bg-white/5 px-4 py-2 text-sm font-semibold text-white/90">
-              <HeartHandshake size={18} className="text-pale-sage" />
+              
               Survivor portal
             </span>
           </div>
