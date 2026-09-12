@@ -131,6 +131,22 @@ app.get('/api/v1/counsellor/me',requireAuth,requireRoles('COUNSELLOR'),asyncRout
   return ok(res, { ...safeCounsellor, casesAssigned: assignedCases.length });
 }));
 const safeCase = (c: any) => minimize({ ...c, reference_id:c.docket, docket_id:c.docket, docket:c.docket, isSynthetic:true }, MINIMIZATION_SCHEMA.survivorCaseView);
+// Resolves assignedCounsellorId → the actual counsellor record (name/specialisation/phone).
+// Same logic as GET /api/v1/cases/:id — needed here too because connect-by-docket and
+// /cases/verify previously returned the raw case (only assignedCounsellorId, no resolved
+// counsellor object), so the survivor UI always showed "Counsellor not yet assigned"
+// even when a counsellor WAS assigned in the data.
+const withResolvedCounsellor = (c: any) => {
+  const assignedCounsellor = c.assignedCounsellorId
+    ? store.counsellors.find((x) => x.id === c.assignedCounsellorId)
+    : undefined;
+  return {
+    ...c,
+    assignedCounsellor: assignedCounsellor
+      ? { name: assignedCounsellor.name, specialisation: assignedCounsellor.specialisation, phone: assignedCounsellor.phone }
+      : null,
+  };
+};
 const connectCaseByDocket = async (req: { body: { reference_id?: string; docket?: string } }, res: express.Response) => {
   const docket = (req.body.reference_id ?? req.body.docket ?? '').trim();
   const found = await findEligibleCase(docket);
@@ -138,12 +154,12 @@ const connectCaseByDocket = async (req: { body: { reference_id?: string; docket?
   ensureUserRecord(user);
   const accessToken = signUser(user);
   record(`user:${user.id}:cases`, found.id);
-  return ok(res, { case: safeCase(found), accessToken, tokenType: 'Bearer', user:{id:user.id,role:user.role,victimToken:user.victimToken} });
+  return ok(res, { case: safeCase(withResolvedCounsellor(found)), accessToken, tokenType: 'Bearer', user:{id:user.id,role:user.role,victimToken:user.victimToken} });
 };
 const caseReferenceSchema = z.object({ reference_id:z.string().min(3).optional(), docket:z.string().min(3).optional() }).refine(x=>Boolean(x.reference_id ?? x.docket), 'reference_id is required');
 app.post('/api/v1/cases/connect-by-docket', body(caseReferenceSchema), asyncRoute(async (req, res) => connectCaseByDocket(req as any, res)));
 app.post('/api/v1/cases/connect', body(caseReferenceSchema), asyncRoute(async (req, res) => connectCaseByDocket(req as any, res)));
-app.post('/api/v1/cases/verify', body(caseReferenceSchema), asyncRoute(async (req,res)=>{ const docket=(req.body.reference_id??req.body.docket).trim(); const found=await findEligibleCase(docket); return ok(res,{eligible:true,case:safeCase(found)}); }));
+app.post('/api/v1/cases/verify', body(caseReferenceSchema), asyncRoute(async (req,res)=>{ const docket=(req.body.reference_id??req.body.docket).trim(); const found=await findEligibleCase(docket); return ok(res,{eligible:true,case:safeCase(withResolvedCounsellor(found))}); }));
 app.post('/api/v1/auth/refresh', asyncRoute(async (req, res) => {
   const token = req.headers.authorization?.replace(/^Bearer\s+/i, '');
   if (!token) throw new AppError(401, 'UNAUTHORIZED', 'Authentication is required.');
@@ -169,10 +185,7 @@ app.get('/api/v1/cases/:id',requireAuth,asyncRoute(async(req:AuthedRequest,res)=
   const c=store.cases.find(x=>x.id===req.params.id||x.victimToken===req.params.id||x.docket===req.params.id); 
   if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); 
   if(req.user!.role==='SURVIVOR'&&req.user!.victimToken!==c.victimToken&&!(store.records.get(`user:${req.user!.id}:cases`)||[]).includes(c.id)) throw new AppError(403,'FORBIDDEN','You can only access your own case.'); 
-  // Resolve the real counsellor record (name/specialisation/phone) instead of
-  // leaving the survivor with just the boolean "Assigned"/"Not assigned" flag.
-  const assignedCounsellor = c.assignedCounsellorId ? store.counsellors.find(x => x.id === c.assignedCounsellorId) : undefined;
-  return ok(res, { ...c, assignedCounsellor: assignedCounsellor ? { name: assignedCounsellor.name, specialisation: assignedCounsellor.specialisation, phone: assignedCounsellor.phone } : null });
+  return ok(res, withResolvedCounsellor(c));
 }));
 app.get('/api/v1/cases/:id/escalation',requireAuth,requireRoles('COUNSELLOR','DISTRICT_ADMIN','STATE_ADMIN','NATIONAL_ADMIN'),asyncRoute(async(req,res)=>{
   const c=store.cases.find(x=>x.id===req.params.id||x.victimToken===req.params.id||x.docket===req.params.id);
