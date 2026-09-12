@@ -82,21 +82,20 @@ export const aiService = {
     return apiRequest("/api/v1/check-ins/history");
   },
 
-   async getCounsellorVoiceCheckIns() {
+ async getCounsellorVoiceCheckIns() {
     return apiRequest
       Array<{
-        id: string;
-        victimToken?: string;
-        survivorName?: string;
-        docket?: string;
-        createdAt: string;
-        transcript?: string;
-        channel?: string;
-        requestCounsellorCall?: boolean;
+        id: string,
+        victimToken?: string,
+        survivorName?: string,
+        docket?: string,
+        createdAt: string,
+        transcript?: string,
+        channel?: string,
+        requestCounsellorCall?: boolean,
       }>
-    >("/api/v1/counsellor/voice-checkins");
+    >("/api/v1/counsellor/voice-checkins"),
   },
-
   async getCounsellorVoiceCheckIns() {
     return apiRequest<Array<{ id: string; victimToken?: string; createdAt: string; transcript?: string }>>("/api/v1/counsellor/voice-checkins");
   },
