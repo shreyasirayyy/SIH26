@@ -9,7 +9,8 @@ import { caseService } from "@/services/case";
 import { generateHealthSummaryPdf } from "@/lib/exportPdf";
 
 export default function PrivacyPage() {
-  const { monitoring, setMonitoring: setStoreMonitoring, survivorName, docket, victimToken, currentCase } = useAppStore();
+  const { monitoring, setMonitoring: setStoreMonitoring, survivorName, docket, victimToken, currentCase, language } = useAppStore();
+  const hindi = language === "Hindi";
   const [message, setMessage] = useState("");
   const [downloading, setDownloading] = useState(false);
 
@@ -18,9 +19,13 @@ export default function PrivacyPage() {
       await apiRequest(`/api/v1/monitoring/${action}`, { method: "POST", body: JSON.stringify({}) });
       const nextState = action === "pause" ? "paused" : action === "stop" ? "stopped" : "active";
       setStoreMonitoring(nextState);
-      setMessage(`Monitoring ${nextState}. Support remains available.`);
+      setMessage(
+        hindi
+          ? `निगरानी की स्थिति: ${nextState === "paused" ? "रुकी हुई" : nextState === "stopped" ? "बंद" : "सक्रिय"}। सहायता हमेशा उपलब्ध है।`
+          : `Monitoring ${nextState}. Support remains available.`
+      );
     } catch {
-      setMessage("We could not update monitoring. Please try again.");
+      setMessage(hindi ? "हम निगरानी को अपडेट नहीं कर सके। कृपया पुनः प्रयास करें।" : "We could not update monitoring. Please try again.");
     }
   }
 
@@ -73,11 +78,7 @@ export default function PrivacyPage() {
         ];
       }
 
-      const activeCaseRecord = currentCase;
-      const counsellor =
-        activeCaseRecord?.assignedCounsellor?.name ??
-        (activeCaseRecord?.counsellorAssigned !== "Not assigned" ? activeCaseRecord?.counsellorAssigned : undefined) ??
-        "Dr. Neha Sharma (Trauma & Rehab)";
+      const counsellor = currentCase?.assignedCounsellor?.name ?? "Assigned Case Counsellor";
 
       generateHealthSummaryPdf({
         survivorName: survivorName ?? currentCase?.survivorName ?? "Sunita Kumari",
@@ -99,9 +100,9 @@ export default function PrivacyPage() {
           socialConnectedness: c.signals?.socialConnectedness ?? c.socialConnectedness ?? 4,
         })),
       });
-      setMessage("Clinical report ready for download/print!");
-    } catch (e) {
-      alert("Unable to generate PDF report at this moment.");
+      setMessage(hindi ? "क्लीनिकल रिपोर्ट डाउनलोड/प्रिंट के लिए तैयार है!" : "Clinical report ready for download/print!");
+    } catch {
+      alert(hindi ? "इस समय PDF रिपोर्ट जनरेट नहीं हो सकी।" : "Unable to generate PDF report at this moment.");
     } finally {
       setDownloading(false);
     }
@@ -110,12 +111,18 @@ export default function PrivacyPage() {
   return (
     <div className="px-5 pb-10 md:px-10 xl:px-14">
       <Link href="/survivor/my-space" className="inline-flex items-center gap-2 text-sm font-semibold text-[#75857f]">
-        <ArrowLeft size={16} /> My space
+        <ArrowLeft size={16} /> {hindi ? "मेरी जगह" : "My space"}
       </Link>
-      <p className="mt-6 text-xs font-bold uppercase tracking-[.2em] text-[#7e918b]">Privacy & control</p>
-      <h1 className="mt-3 font-display text-5xl text-[#172326] md:text-6xl">You&apos;re in control.</h1>
+      <p className="mt-6 text-xs font-bold uppercase tracking-[.2em] text-[#7e918b]">
+        {hindi ? "गोपनीयता और नियंत्रण" : "Privacy & control"}
+      </p>
+      <h1 className="mt-3 font-display text-5xl text-[#172326] md:text-6xl">
+        {hindi ? "नियंत्रण आपके हाथ में है।" : "You're in control."}
+      </h1>
       <p className="mt-4 max-w-2xl text-lg text-[#63736e]">
-        SAATH is voluntary. Your support remains available whether monitoring is active, paused, or stopped.
+        {hindi
+          ? "SAATH पूरी तरह स्वैच्छिक है। आपकी सहायता हमेशा जारी रहेगी चाहे निगरानी सक्रिय हो, रुकी हो या बंद।"
+          : "SAATH is voluntary. Your support remains available whether monitoring is active, paused, or stopped."}
       </p>
       <div className="mt-10 grid gap-5 lg:grid-cols-2">
         <div className="surface rounded-[28px] p-6 md:p-8">
@@ -124,44 +131,50 @@ export default function PrivacyPage() {
               <ShieldCheck size={20} />
             </span>
             <div>
-              <p className="text-xs font-bold uppercase tracking-[.15em] text-[#8a9b94]">Current status</p>
-              <p className="mt-1 text-lg font-bold text-[#294138]">Monitoring {monitoring}</p>
+              <p className="text-xs font-bold uppercase tracking-[.15em] text-[#8a9b94]">
+                {hindi ? "वर्तमान स्थिति" : "Current status"}
+              </p>
+              <p className="mt-1 text-lg font-bold text-[#294138]">
+                {hindi
+                  ? `निगरानी: ${monitoring === "paused" ? "रुकी हुई" : monitoring === "stopped" ? "बंद" : "सक्रिय"}`
+                  : `Monitoring ${monitoring}`}
+              </p>
             </div>
           </div>
           <div className="mt-7 space-y-3 text-sm text-[#61716b]">
             <div className="flex gap-3">
               <Check size={17} className="text-[#4d946b]" />
-              Wellbeing check-ins you choose to share
+              {hindi ? "केवल वही चेक-इन जो आप साझा करना चुनें" : "Wellbeing check-ins you choose to share"}
             </div>
             <div className="flex gap-3">
               <Check size={17} className="text-[#4d946b]" />
-              Support interactions with your assigned team
+              {hindi ? "आपकी असाइन की गई सहायता टीम के साथ बातचीत" : "Support interactions with your assigned team"}
             </div>
             <div className="flex gap-3">
               <Check size={17} className="text-[#4d946b]" />
-              No clinical diagnosis or hidden scoring
+              {hindi ? "कोई नैदानिक रोग-निर्णय या छिपा हुआ स्कोर नहीं" : "No clinical diagnosis or hidden scoring"}
             </div>
           </div>
           <div className="mt-8 flex flex-wrap gap-2">
             <button
               onClick={() => {
                 setMonitoring("paused");
-                setMessage("Monitoring paused. Support remains available.");
+                setMessage(hindi ? "निगरानी 24 घंटे के लिए रोकी गई। सहायता उपलब्ध है।" : "Monitoring paused. Support remains available.");
               }}
               className="flex items-center gap-2 rounded-full bg-[#f4f6ec] px-4 py-2 text-sm font-bold text-[#56715d] hover:bg-[#e9eee0] transition-colors"
             >
               <Pause size={15} />
-              Pause 24 hours
+              {hindi ? "24 घंटे रोकें" : "Pause 24 hours"}
             </button>
             <button
               onClick={() => {
                 setMonitoring("stopped");
-                setMessage("Monitoring stopped. Support remains available.");
+                setMessage(hindi ? "निगरानी रोक दी गई है। सहायता उपलब्ध है।" : "Monitoring stopped. Support remains available.");
               }}
               className="flex items-center gap-2 rounded-full bg-[#faebe5] px-4 py-2 text-sm font-bold text-[#a15f4e] hover:bg-[#f6dfd7] transition-colors"
             >
               <Square size={14} />
-              Stop monitoring
+              {hindi ? "निगरानी बंद करें" : "Stop monitoring"}
             </button>
           </div>
           {message && <p className="mt-4 rounded-xl bg-[#eaf4ed] p-3 text-sm font-semibold text-[#35725f]">{message}</p>}
@@ -171,22 +184,28 @@ export default function PrivacyPage() {
           <div className="surface rounded-3xl p-6">
             <div className="flex items-center gap-3">
               <LockKeyhole size={19} className="text-[#0f766e]" />
-              <p className="font-bold text-[#32483f]">Who can access what</p>
+              <p className="font-bold text-[#32483f]">
+                {hindi ? "किसे क्या देखने की अनुमति है" : "Who can access what"}
+              </p>
             </div>
             <p className="mt-3 text-sm leading-relaxed text-[#6b7b75]">
-              You can see your detailed record. Counsellors see only assigned cases. Administrative views use aggregated
-              information.
+              {hindi
+                ? "आप अपना पूरा रिकॉर्ड देख सकते हैं। परामर्शदाता केवल उन्हें सौंपे गए मामलों को ही देख सकते हैं। प्रशासनिक डैशबोर्ड केवल एकत्रित जानकारी का उपयोग करते हैं।"
+                : "You can see your detailed record. Counsellors see only assigned cases. Administrative views use aggregated information."}
             </p>
           </div>
 
           <div className="surface rounded-3xl p-6">
             <div className="flex items-center gap-3">
               <Eye size={19} className="text-[#5b8db8]" />
-              <p className="font-bold text-[#32483f]">Data management</p>
+              <p className="font-bold text-[#32483f]">
+                {hindi ? "डेटा प्रबंधन" : "Data management"}
+              </p>
             </div>
             <p className="mt-2 text-xs leading-relaxed text-[#6b7b75]">
-              Export your clinical wellbeing timeline, distress observations, and recovery signals in a structured PDF
-              to share with your therapist, doctor, or counsellor.
+              {hindi
+                ? "अपनी भलाई और चेक-इन सारांश को एक संरचित PDF में डाउनलोड करें, जिसे आप अपने चिकित्सक, डॉक्टर या परामर्शदाता के साथ साझा कर सकते हैं।"
+                : "Export your clinical wellbeing timeline, distress observations, and recovery signals in a structured PDF to share with your therapist, doctor, or counsellor."}
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <button
@@ -195,7 +214,9 @@ export default function PrivacyPage() {
                 className="flex items-center gap-2 rounded-full bg-[#0f766e] px-5 py-2.5 text-sm font-bold text-white hover:bg-[#0d6861] transition-all shadow-sm"
               >
                 <FileText size={15} />
-                {downloading ? "Preparing PDF..." : "Download my data (PDF Report)"}
+                {downloading
+                  ? hindi ? "PDF तैयार हो रही है..." : "Preparing PDF..."
+                  : hindi ? "मेरा डेटा डाउनलोड करें (PDF रिपोर्ट)" : "Download my data (PDF Report)"}
               </button>
             </div>
           </div>

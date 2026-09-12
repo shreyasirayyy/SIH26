@@ -4,7 +4,11 @@ import Link from "next/link";
 import { ArrowLeft, Check } from "lucide-react";
 import { aiService } from "@/services/ai";
 
+import { useAppStore } from "@/store/useAppStore";
+
 export default function JourneyPage() {
+  const language = useAppStore((state) => state.language);
+  const hindi = language === "Hindi";
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -25,45 +29,74 @@ export default function JourneyPage() {
   const latestDistress = history.length > 0 ? history[history.length - 1].ml?.distressScore : null;
   const moodLabel =
     latestDistress === null
-      ? "Your rhythm will appear here as you check in"
+      ? (hindi ? "जैसे-जैसे आप चेक-इन करेंगे, आपकी लय यहाँ दिखेगी" : "Your rhythm will appear here as you check in")
       : latestDistress < 30
-      ? "Feeling calm and steady 🌿"
+      ? (hindi ? "शांत और स्थिर महसूस कर रहे हैं 🌿" : "Feeling calm and steady 🌿")
       : latestDistress < 55
-      ? "Finding your ground, one day at a time"
-      : "You showed up — that takes strength";
+      ? (hindi ? "कदम दर कदम, अपनी स्थिरता पा रहे हैं" : "Finding your ground, one day at a time")
+      : (hindi ? "आप उपस्थित रहे — यह अपने आप में एक शक्ति है" : "You showed up — that takes strength");
 
   return (
     <div className="px-5 pb-10 md:px-10 xl:px-14">
       <Link href="/survivor/my-space" className="inline-flex items-center gap-2 text-sm font-semibold text-[#75857f]">
-        <ArrowLeft size={16} /> My space
+        <ArrowLeft size={16} /> {hindi ? "मेरी जगह" : "My space"}
       </Link>
 
       <div className="mt-6">
-        <p className="text-xs font-bold uppercase tracking-[.2em] text-[#7e918b]">My journey</p>
-        <h1 className="mt-3 font-display text-5xl text-[#172326] md:text-6xl">Small steps still count.</h1>
-        <p className="mt-4 max-w-2xl text-lg text-[#63736e]">A gentle view of your check-ins and the support around you — not a scorecard.</p>
+        <p className="text-xs font-bold uppercase tracking-[.2em] text-[#7e918b]">
+          {hindi ? "मेरी यात्रा" : "My journey"}
+        </p>
+        <h1 className="mt-3 font-display text-5xl text-[#172326] md:text-6xl">
+          {hindi ? "छोटे कदम भी मायने रखते हैं।" : "Small steps still count."}
+        </h1>
+        <p className="mt-4 max-w-2xl text-lg text-[#63736e]">
+          {hindi
+            ? "आपके चेक-इन और सहयोग का एक सौम्य नज़रिया — कोई स्कोरकार्ड नहीं।"
+            : "A gentle view of your check-ins and the support around you — not a scorecard."}
+        </p>
       </div>
       
       <div className="mt-10 grid gap-5 xl:grid-cols-[1.2fr_.8fr]">
         <div className="surface rounded-[28px] p-6 md:p-8">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[.18em] text-[#8a9b94]">Your rhythm</p>
+              <p className="text-xs font-bold uppercase tracking-[.18em] text-[#8a9b94]">
+                {hindi ? "आपकी मानसिक लय" : "Your rhythm"}
+              </p>
               <h2 className="mt-2 font-display text-2xl text-[#263c35]">{moodLabel}</h2>
             </div>
-            <span className="rounded-full bg-[#e5f2ec] px-3 py-1 text-xs font-bold text-[#327d70]">Last {history.length} check-ins</span>
+            <span className="rounded-full bg-[#e5f2ec] px-3 py-1 text-xs font-bold text-[#327d70]">
+              {hindi ? `पिछले ${history.length} चेक-इन` : `Last ${history.length} check-ins`}
+            </span>
           </div>
           
           <RhythmChart points={points} loading={loading} />
         </div>
 
         <div className="surface-soft rounded-[28px] p-6">
-          <p className="text-xs font-bold uppercase tracking-[.18em] text-[#8a9b94]">Milestones</p>
+          <p className="text-xs font-bold uppercase tracking-[.18em] text-[#8a9b94]">
+            {hindi ? "महत्वपूर्ण पड़ाव" : "Milestones"}
+          </p>
           <div className="mt-5 space-y-5">
             { [
-              { label: "First check-in completed", done: history.length > 0 },
-              { label: "Grounding activity tried", done: false },
-              { label: "Support team connected", done: false }
+              {
+                label: hindi ? "पहला चेक-इन पूरा हुआ" : "First check-in completed",
+                done: history.length > 0,
+                subDone: hindi ? "सराहनीय पल" : "A moment worth noticing",
+                subPending: hindi ? "जारी रखें" : "Keep going"
+              },
+              {
+                label: hindi ? "शांत व्यायाम आज़माया" : "Grounding activity tried",
+                done: false,
+                subDone: hindi ? "सराहनीय पल" : "A moment worth noticing",
+                subPending: hindi ? "जारी रखें" : "Keep going"
+              },
+              {
+                label: hindi ? "सहायता टीम से जुड़े" : "Support team connected",
+                done: false,
+                subDone: hindi ? "सराहनीय पल" : "A moment worth noticing",
+                subPending: hindi ? "जारी रखें" : "Keep going"
+              }
             ].map((item) => (
               <div className="flex gap-3" key={item.label}>
                 <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${item.done ? "bg-[#dcebdd] text-[#3e8061]" : "bg-border-color text-text-secondary"}`}>
@@ -71,7 +104,7 @@ export default function JourneyPage() {
                 </span>
                 <div>
                   <p className="text-sm font-semibold text-[#385048]">{item.label}</p>
-                  <p className="mt-1 text-xs text-[#82908a]">{item.done ? "A moment worth noticing" : "Keep going"}</p>
+                  <p className="mt-1 text-xs text-[#82908a]">{item.done ? item.subDone : item.subPending}</p>
                 </div>
               </div>
             ))}

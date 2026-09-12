@@ -9,7 +9,8 @@ import { aiService } from "@/services/ai";
 const iconMap: Record<string, any> = { Wind, Leaf, Moon, Ear, Sparkles, BookOpen };
 
 export default function FeelBetterPage() { 
-  const { currentCase } = useAppStore();
+  const { currentCase, language } = useAppStore();
+  const hindi = language === "Hindi";
   const [recommendations, setRecommendations] = useState<any[]>([]);
 
   useEffect(() => {
@@ -34,9 +35,17 @@ export default function FeelBetterPage() {
   return (
     <div className="px-5 pb-10 md:px-10 xl:px-14">
       <div className="saath-fade max-w-3xl">
-        <p className="text-xs font-bold uppercase tracking-[.2em] text-[#7e918b]">Feel better</p>
-        <h1 className="mt-3 font-display text-5xl leading-none text-[#172326] md:text-6xl">A little more room to breathe.</h1>
-        <p className="mt-5 max-w-2xl text-lg leading-relaxed text-[#63736e]">Choose something that feels possible right now. You can stop at any time — nothing here needs to be completed.</p>
+        <p className="text-xs font-bold uppercase tracking-[.2em] text-[#7e918b]">
+          {hindi ? "बेहतर महसूस करें" : "Feel better"}
+        </p>
+        <h1 className="mt-3 font-display text-5xl leading-none text-[#172326] md:text-6xl">
+          {hindi ? "साँस लेने के लिए थोड़ा और सुकून।" : "A little more room to breathe."}
+        </h1>
+        <p className="mt-5 max-w-2xl text-lg leading-relaxed text-[#63736e]">
+          {hindi
+            ? "कुछ ऐसा चुनें जो अभी संभव लगे। आप कभी भी रुक सकते हैं — यहाँ कुछ भी पूरा करना ज़रूरी नहीं है।"
+            : "Choose something that feels possible right now. You can stop at any time — nothing here needs to be completed."}
+        </p>
       </div>
       <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {sortedExercises.map((exercise) => {
@@ -59,16 +68,20 @@ export default function FeelBetterPage() {
                     <ArrowRight size={16} />
                   </span>
                 </div>
-                <h2 className="mt-6 font-display text-2xl text-[#243630]">{exercise.title}</h2>
+                <h2 className="mt-6 font-display text-2xl text-[#243630]">
+                  {hindi ? exercise.titleHi || exercise.title : exercise.title}
+                </h2>
                 {isRecommended && (
                   <p className="mt-1 inline-block rounded-md bg-[color:var(--primary-teal-dark)]/15 px-2 py-0.5 text-xs font-bold text-deep-teal">
-                    {exercise.reason}
+                    {hindi ? "आपके लिए अनुशंसित" : (exercise.reason || "Recommended for you")}
                   </p>
                 )}
-                <p className="mt-2 min-h-12 text-sm leading-relaxed text-[#6b7b75]">{exercise.desc}</p>
+                <p className="mt-2 min-h-12 text-sm leading-relaxed text-[#6b7b75]">
+                  {hindi ? exercise.descHi || exercise.desc : exercise.desc}
+                </p>
               </div>
               <div className="mt-5 flex items-center gap-2 text-xs font-bold text-[#0f766e]">
-                <Play size={13} /> {exercise.time}
+                <Play size={13} /> {hindi ? exercise.timeHi || exercise.time : exercise.time}
               </div>
             </Link>
           );
@@ -81,13 +94,17 @@ export default function FeelBetterPage() {
           <div className="max-w-2xl space-y-3">
             <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3.5 py-1 text-xs font-bold uppercase tracking-[.2em] text-[#a7f3d0] backdrop-blur-md">
               <Sparkles size={13} className="text-[#a7f3d0]" />
-              TAARA · Your Gentle Guide
+              {hindi ? "तारा · आपकी सौम्य मार्गदर्शिका" : "TAARA · Your Gentle Guide"}
             </div>
             <h2 className="font-display text-3xl leading-tight text-white md:text-4xl">
-              One step at a time. You don&apos;t have to figure everything out right now.
+              {hindi
+                ? "एक बार में एक कदम। आपको अभी सब कुछ सुलझाने की ज़रूरत नहीं है।"
+                : "One step at a time. You don't have to figure everything out right now."}
             </h2>
             <p className="text-base leading-relaxed text-white/80">
-              Need something else or just a quiet conversation? TAARA is here to listen, ground you, and stay by your side with no pressure.
+              {hindi
+                ? "कुछ और चाहिए या सिर्फ़ एक शांत बातचीत? तारा यहाँ सुनने, आपको सहारा देने और बिना किसी दबाव के आपके साथ रहने के लिए है।"
+                : "Need something else or just a quiet conversation? TAARA is here to listen, ground you, and stay by your side with no pressure."}
             </p>
           </div>
 
@@ -95,7 +112,7 @@ export default function FeelBetterPage() {
             href="/survivor/taara"
             className="group inline-flex shrink-0 items-center gap-3 rounded-full bg-white px-7 py-3.5 text-sm font-bold text-[#0f766e] shadow-lg transition-all hover:bg-[#e6f7f2] hover:shadow-xl hover:scale-105"
           >
-            <span>Talk to TAARA</span>
+            <span>{hindi ? "तारा से बात करें" : "Talk to TAARA"}</span>
             <ArrowRight size={17} className="transition-transform group-hover:translate-x-1" />
           </Link>
         </div>

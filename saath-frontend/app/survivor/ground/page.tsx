@@ -56,11 +56,19 @@ const STEPS = [
 	},
 ];
 
+import { useAppStore } from "@/store/useAppStore";
+
 export default function GroundPage() {
+	const globalLang = useAppStore((state) => state.language);
+	const setGlobalLang = useAppStore((state) => state.setLanguage);
 	const [step, setStep] = useState(0);
-	const [language, setLanguage] = useState<Language>("hi");
+	const [language, setLanguage] = useState<Language>(globalLang === "Hindi" ? "hi" : "en");
 	const { speak, stop, enabled, toggleEnabled } = useSpeech();
 	const current = STEPS[step];
+
+	useEffect(() => {
+		setLanguage(globalLang === "Hindi" ? "hi" : "en");
+	}, [globalLang]);
 
 	useEffect(() => {
 		speak(current.prompt[language], language);
@@ -75,27 +83,31 @@ export default function GroundPage() {
 	return (
 		<div className="px-5 pb-10 md:px-10 xl:px-14">
 			<Link href="/survivor/feel-better" className="inline-flex items-center gap-2 text-sm font-semibold text-[#75857f]">
-				<ArrowLeft size={16} /> Feel better
+				<ArrowLeft size={16} /> {language === "hi" ? "बेहतर महसूस करें" : "Feel better"}
 			</Link>
 
 			<div className="mx-auto mt-10 max-w-2xl">
 				<div className="flex items-center justify-between">
 					<div>
-						<p className="text-xs font-bold uppercase tracking-[.2em] text-[#7e918b]">5–4–3–2–1 grounding</p>
-						<h1 className="mt-3 font-display text-5xl text-[#172326]">Come back to now.</h1>
+						<p className="text-xs font-bold uppercase tracking-[.2em] text-[#7e918b]">
+							{language === "hi" ? "5–4–3–2–1 ग्राउंडिंग" : "5–4–3–2–1 grounding"}
+						</p>
+						<h1 className="mt-3 font-display text-5xl text-[#172326]">
+							{language === "hi" ? "वर्तमान में वापस आएँ।" : "Come back to now."}
+						</h1>
 					</div>
 					<span className="font-display text-5xl text-[#d69e2e]">{current.n}</span>
 				</div>
 
 				<div className="mt-4 inline-flex rounded-full border border-[#d8cfe8] p-1">
 					<button
-						onClick={() => setLanguage("hi")}
+						onClick={() => { setLanguage("hi"); setGlobalLang("Hindi"); }}
 						className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${language === "hi" ? "bg-[#0f766e] text-white" : "text-[#0f766e]"}`}
 					>
 						हिन्दी
 					</button>
 					<button
-						onClick={() => setLanguage("en")}
+						onClick={() => { setLanguage("en"); setGlobalLang("English"); }}
 						className={`rounded-full px-4 py-1.5 text-sm font-semibold transition ${language === "en" ? "bg-[#0f766e] text-white" : "text-[#0f766e]"}`}
 					>
 						English

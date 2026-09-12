@@ -5,7 +5,11 @@ import { ArrowLeft, Headphones, Pause, Play, SkipBack, SkipForward } from "lucid
 import { useState, useRef, useEffect } from "react";
 import InterventionFeedback from "@/components/InterventionFeedback";
 
+import { useAppStore } from "@/store/useAppStore";
+
 export default function ListenPage() {
+  const language = useAppStore((state) => state.language);
+  const hindi = language === "Hindi";
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -39,18 +43,35 @@ export default function ListenPage() {
 
   return (
     <div className="px-5 pb-10 md:px-10 xl:px-14">
-      <Link href="/survivor/feel-better" className="inline-flex items-center gap-2 text-sm font-semibold text-[#75857f]"><ArrowLeft size={16} /> Feel better</Link>
+      <Link href="/survivor/feel-better" className="inline-flex items-center gap-2 text-sm font-semibold text-[#75857f]">
+        <ArrowLeft size={16} /> {hindi ? "बेहतर महसूस करें" : "Feel better"}
+      </Link>
 
       <div className="mx-auto mt-8 max-w-3xl">
-        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f9e9e3] text-[#b26b55]"><Headphones size={22} /></span>
-        <p className="mt-6 text-xs font-bold uppercase tracking-[.2em] text-[#7e918b]">Listen</p>
-        <h1 className="mt-3 font-display text-5xl text-[#172326]">A quiet sound to sit with.</h1>
-        <p className="mt-4 text-lg text-[#63736e]">Choose a calm audio space.</p>
+        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f9e9e3] text-[#b26b55]">
+          <Headphones size={22} />
+        </span>
+        <p className="mt-6 text-xs font-bold uppercase tracking-[.2em] text-[#7e918b]">
+          {hindi ? "सुनें" : "Listen"}
+        </p>
+        <h1 className="mt-3 font-display text-5xl text-[#172326]">
+          {hindi ? "एक शांत ध्वनि जिसके साथ आप बैठ सकें।" : "A quiet sound to sit with."}
+        </h1>
+        <p className="mt-4 text-lg text-[#63736e]">
+          {hindi ? "एक शांत श्रव्य वातावरण चुनें।" : "Choose a calm audio space."}
+        </p>
 
         <div className="mt-8 rounded-[30px] bg-[#0f766e] p-8 text-white md:p-12">
-          <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full bg-white/12 text-[#f9ca64] shadow-[0_0_0_18px_rgba(255,255,255,.06)]"><Headphones size={38} /></div>
-          <h2 className="mt-8 text-center font-display text-3xl">Calm Audio</h2>
-          <p className="mt-2 text-center text-sm text-white/65">Quiet Moments · {formatTime(duration)}</p>
+          <div className="mx-auto flex h-28 w-28 items-center justify-center rounded-full bg-white/12 text-[#f9ca64] shadow-[0_0_0_18px_rgba(255,255,255,.06)]">
+            <Headphones size={38} />
+          </div>
+          <h2 className="mt-8 text-center font-display text-3xl">
+            {hindi ? "शांत ऑडियो" : "Calm Audio"}
+          </h2>
+          <p className="mt-2 text-center text-sm text-white/65">
+            {hindi ? "सुकून के पल" : "Quiet Moments"} · {formatTime(duration)}
+          </p>
+
 
           <div className="mt-8 h-1.5 rounded-full bg-white/20 cursor-pointer" onClick={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
