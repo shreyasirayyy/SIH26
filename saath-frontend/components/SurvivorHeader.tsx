@@ -54,6 +54,7 @@ function SectionGroup({ title, children }: { title: string; children: React.Reac
 }
 
 export function SurvivorHeader() {
+  const survivorName = useAppStore((state) => state.survivorName);
   const language = useAppStore((state) => state.language);
   const setLanguage = useAppStore((state) => state.setLanguage);
   const accessibility = useAppStore((state) => state.accessibility);
@@ -94,6 +95,7 @@ export function SurvivorHeader() {
   }, [isAccessibilityOpen]);
 
   const hindi = language === "Hindi";
+  const initial = survivorName?.trim().charAt(0).toUpperCase() || "S";
 
   return (
     <header className="flex items-center justify-between px-5 py-5 md:px-10 md:py-7 xl:px-14">
@@ -134,6 +136,10 @@ export function SurvivorHeader() {
           <Bell size={17} />
           {hasNotifications && <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-warm-peach" />}
         </Link>
+        <Link href="/survivor/my-space" aria-label={survivorName ?? "Profile"} title={survivorName ?? (hindi ? "प्रोफ़ाइल" : "Profile")} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#e7d6cb] text-xs font-bold text-[#6f4d3d]">
+          {initial}
+        </Link>
+
         {isAccessibilityOpen && (
           <div id="saath-accessibility-panel" ref={panelRef} role="dialog" aria-modal="false" aria-label="Accessibility" className="absolute right-0 top-[calc(100%+0.75rem)] z-50 w-[min(25rem,calc(100vw-1.25rem))] overflow-hidden rounded-[1.5rem] border border-border-color bg-[color:var(--surface)] shadow-[0_18px_50px_rgba(23,35,38,0.14)] backdrop-blur-sm">
             <div className="flex items-start justify-between border-b border-border-color px-4 py-3.5">
