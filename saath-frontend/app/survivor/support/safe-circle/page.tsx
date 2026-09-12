@@ -1,129 +1,123 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
-import { ArrowLeft, HeartHandshake, Phone, Plus, ShieldCheck, Trash2, UserRound } from "lucide-react";
-
-type TrustedContact = {
-  id: string;
-  name: string;
-  relation: string;
-  phone: string;
-};
-
-const INITIAL_CONTACTS: TrustedContact[] = [
-  { id: "c1", name: "Radha Devi", relation: "Mother", phone: "+91 98220 11445" },
-  { id: "c2", name: "Meena Kumari", relation: "Neighbour & friend", phone: "+91 90210 33871" },
-];
+import Link from "next/link";
+import { ArrowLeft, Check, HeartHandshake } from "lucide-react";
+import { aiService } from "@/services/ai";
 
 export default function SafeCirclePage() {
-  const [contacts, setContacts] = useState<TrustedContact[]>(INITIAL_CONTACTS);
-  const [showForm, setShowForm] = useState(false);
   const [name, setName] = useState("");
-  const [relation, setRelation] = useState("");
-  const [phone, setPhone] = useState("");
+  const [relation, setRelation] = useState("Sister");
+  const [email, setEmail] = useState("");
+  const [consent, setConsent] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  const addContact = () => {
-    if (!name.trim() || !phone.trim()) return;
-    setContacts((prev) => [
-      ...prev,
-      { id: `c${prev.length + 1}-${Date.now()}`, name: name.trim(), relation: relation.trim() || "Trusted contact", phone: phone.trim() },
-    ]);
-    setName("");
-    setRelation("");
-    setPhone("");
-    setShowForm(false);
-  };
+  const canSubmit = name.trim() && relation.trim() && consent && email.trim();
 
-  const removeContact = (id: string) => setContacts((prev) => prev.filter((c) => c.id !== id));
+  async function handleSubmit() {
+    if (!canSubmit) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await aiService.createSafeCircleItem({
+        name: name.trim(),
+        relation: relation.trim(),
+        email: email.trim(),
+        consentToContact: consent,
+      });
+      setSent(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Couldn't save this contact. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <div className="px-5 pb-10 md:px-10 xl:px-14">
       <Link href="/survivor/support" className="inline-flex items-center gap-2 text-sm font-semibold text-[#75857f]">
-        <ArrowLeft size={16} /> Back to Support
+        <ArrowLeft size={16} /> Support
       </Link>
-
-      <div className="mx-auto mt-10 max-w-2xl">
-        <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#fff0e5] text-[#b56e4e]"><HeartHandshake size={24} /></span>
-        <h1 className="mt-6 font-display text-4xl text-[#172326]">Safe Circle</h1>
-        <p className="mt-3 text-sm leading-relaxed text-[#6b7b75]">
-          Keep a short list of people you trust. If you ever feel unsafe, you can reach them in one tap, and
-          they can be notified to check in on you.
+      <div className="mx-auto mt-9 max-w-3xl">
+        <p className="text-xs font-bold uppercase tracking-[.2em] text-[#7e918b]">Safe Circle</p>
+        <h1 className="mt-3 font-display text-5xl text-[#172326]">Choose someone who can be there.</h1>
+        <p className="mt-4 text-lg text-[#63736e]">
+          If SAATH ever detects a real crisis signal, this person will be emailed automatically so they can be there for you.
         </p>
 
-        <div className="surface mt-8 rounded-[28px] p-6 md:p-8">
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-bold uppercase tracking-[.18em] text-[#7e918b]">Your trusted people</p>
-            <button
-              onClick={() => setShowForm((v) => !v)}
-              className="flex items-center gap-1.5 rounded-full bg-[#b56e4e] px-4 py-2 text-xs font-bold text-white"
-            >
-              <Plus size={14} /> Add contact
-            </button>
-          </div>
-
-          {showForm && (
-            <div className="mt-5 rounded-2xl border border-dashed border-border-color p-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <input
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Full name"
-                  className="rounded-xl border border-border-color px-3.5 py-2.5 text-sm"
-                />
-                <input
-                  value={relation}
-                  onChange={(e) => setRelation(e.target.value)}
-                  placeholder="Relationship (e.g. Sister)"
-                  className="rounded-xl border border-border-color px-3.5 py-2.5 text-sm"
-                />
-                <input
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="Phone number"
-                  className="rounded-xl border border-border-color px-3.5 py-2.5 text-sm sm:col-span-2"
-                />
-              </div>
-              <button onClick={addContact} className="mt-3 rounded-full bg-[#0f766e] px-5 py-2 text-sm font-bold text-white">
-                Save contact
-              </button>
+        <div className="surface mt-10 rounded-[28px] p-7 md:p-10">
+          {sent ? (
+            <div className="py-10 text-center">
+              <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#dcebdd] text-[#3d8561]">
+                <Check size={28} />
+              </span>
+              <h2 className="mt-6 font-display text-3xl text-[#2b473b]">Your Safe Circle is ready.</h2>
+              <p className="mt-3 text-sm text-[#6b7b75]">You can pause, revoke, or change this person any time.</p>
             </div>
-          )}
+          ) : (
+            <>
+              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fff0e5] text-[#b56e4e]">
+                <HeartHandshake size={22} />
+              </span>
+              <h2 className="mt-6 font-display text-3xl text-[#263c35]">Add a trusted person</h2>
 
-          <div className="mt-5 space-y-3">
-            {contacts.length === 0 && (
-              <p className="rounded-2xl border border-dashed border-border-color p-6 text-center text-sm text-[#6b7b75]">
-                No trusted contacts yet. Add someone you feel safe with.
-              </p>
-            )}
-            {contacts.map((contact) => (
-              <div key={contact.id} className="flex items-center justify-between gap-3 rounded-2xl bg-[#f7f5ed] p-4">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#fff0e5] text-[#b56e4e]">
-                    <UserRound size={18} />
-                  </span>
-                  <div>
-                    <p className="text-sm font-semibold text-[#263c35]">{contact.name}</p>
-                    <p className="text-xs text-[#7e918b]">{contact.relation} · {contact.phone}</p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <a href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`} className="flex h-9 w-9 items-center justify-center rounded-full bg-[#0f766e] text-white">
-                    <Phone size={15} />
-                  </a>
-                  <button onClick={() => removeContact(contact.id)} className="flex h-9 w-9 items-center justify-center rounded-full border border-border-color text-[#a2542f] hover:bg-[#fbe6e0]">
-                    <Trash2 size={15} />
-                  </button>
-                </div>
+              <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                <label className="text-sm font-semibold text-[#51635b]">
+                  Name
+                  <input
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="mt-2 w-full rounded-xl border border-[#c8d3d0] bg-white px-4 py-3 font-normal outline-none focus:border-[#0f766e]"
+                    placeholder="e.g. Asha"
+                  />
+                </label>
+                <label className="text-sm font-semibold text-[#51635b]">
+                  Relationship
+                  <select
+                    value={relation}
+                    onChange={(e) => setRelation(e.target.value)}
+                    className="mt-2 w-full rounded-xl border border-[#c8d3d0] bg-white px-4 py-3 font-normal outline-none focus:border-[#0f766e]"
+                  >
+                    <option>Sister</option>
+                    <option>Friend</option>
+                    <option>Parent</option>
+                    <option>Other trusted person</option>
+                  </select>
+                </label>
+                <label className="text-sm font-semibold text-[#51635b] sm:col-span-2">
+                  Email
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="mt-2 w-full rounded-xl border border-[#c8d3d0] bg-white px-4 py-3 font-normal outline-none focus:border-[#0f766e]"
+                    placeholder="asha@example.com"
+                  />
+                </label>
               </div>
-            ))}
-          </div>
-        </div>
 
-        <div className="mt-5 flex items-start gap-3 rounded-2xl bg-[#f4f6ec] p-4 text-sm text-[#5c6d66]">
-          <ShieldCheck size={18} className="mt-0.5 shrink-0 text-[#0f766e]" />
-          Only you can see and edit this list. Your trusted contacts are never shared with SAATH staff or
-          your case file.
+              <label className="mt-6 flex items-start gap-3 text-sm text-[#51635b]">
+                <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-1" />
+                <span>
+                  I understand {name.trim() || "this person"} may be emailed automatically, without asking me again each time, if SAATH detects a genuine crisis signal.
+                </span>
+              </label>
+
+              {error && <p className="mt-4 text-sm font-semibold text-[#b5473f]">{error}</p>}
+
+              <div className="mt-8 flex justify-end">
+                <button
+                  onClick={handleSubmit}
+                  disabled={!canSubmit || loading}
+                  className="rounded-full bg-[#0f766e] px-6 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {loading ? "Saving..." : "Save trusted person"}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

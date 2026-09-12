@@ -90,18 +90,44 @@ export const aiService = {
   },
 
   async getCounsellorVoiceCheckIns() {
-    return apiRequest<
-      Array<{
-        id: string;
-        victimToken?: string;
-        survivorName?: string;
-        docket?: string;
-        createdAt: string;
-        transcript?: string;
-        channel?: string;
-        requestCounsellorCall?: boolean;
-      }>
-    >("/api/v1/counsellor/voice-checkins");
+    let local: Array<{
+      id: string;
+      victimToken?: string;
+      survivorName?: string;
+      docket?: string;
+      createdAt: string;
+      transcript?: string;
+      channel?: string;
+      requestCounsellorCall?: boolean;
+      signals?: any;
+    }> = [];
+    try {
+      const { useAppStore } = await import("@/store/useAppStore");
+      local = (useAppStore.getState().voiceCheckIns as any) ?? [];
+    } catch {
+      // fallback
+    }
+
+    try {
+      const remote = await apiRequest<
+        Array<{
+          id: string;
+          victimToken?: string;
+          survivorName?: string;
+          docket?: string;
+          createdAt: string;
+          transcript?: string;
+          channel?: string;
+          requestCounsellorCall?: boolean;
+          signals?: any;
+        }>
+      >("/api/v1/counsellor/voice-checkins");
+      const seen = new Set((remote ?? []).map((r) => r.id));
+      const combined = [...(remote ?? []), ...local.filter((l) => !seen.has(l.id))];
+      return combined.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    } catch {
+      return local;
+    }
   },
 
   async sendTaaraMessage(message: string, caseId?: string): Promise<{ reply: string; safetyState: string; suggestedAction: string }> {

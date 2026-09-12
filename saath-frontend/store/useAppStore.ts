@@ -53,6 +53,26 @@ function makeTaaraSessionTitle(text: string): string {
   return clean.length > 40 ? `${clean.slice(0, 40)}…` : clean;
 }
 
+export interface VoiceCheckInRecord {
+  id: string;
+  victimToken?: string;
+  survivorName?: string;
+  docket?: string;
+  createdAt: string;
+  transcript?: string;
+  channel?: "voice" | "ivrs";
+  requestCounsellorCall?: boolean;
+  signals?: {
+    sleep?: number;
+    socialConnectedness?: number;
+    mood?: number;
+    fear?: number;
+    perceivedSafety?: number;
+    distressScore?: number;
+    summary?: string;
+  };
+}
+
 export interface AccessibilitySettings {
   textSize: AccessibilityTextSize;
   pageZoom: number;
@@ -118,6 +138,7 @@ interface AppState {
   // one running conversation, so a session can be opened or deleted.
   taaraConversations: Record<string, TaaraSession[]>;
   activeTaaraSessionId: Record<string, string>;
+  voiceCheckIns: VoiceCheckInRecord[];
 
   setSurvivorSession: (opts: {
     victimToken: string;
@@ -137,6 +158,7 @@ interface AppState {
   resetSahayakConversation: () => void;
   addFollowUp: (item: FollowUpItem) => void;
   markFollowUpComplete: (id: string) => void;
+  addVoiceCheckIn: (checkIn: VoiceCheckInRecord) => void;
   ensureTaaraSession: (ownerKey: string) => string;
   startNewTaaraSession: (ownerKey: string) => string;
   setActiveTaaraSession: (ownerKey: string, sessionId: string) => void;
@@ -164,6 +186,12 @@ export const useAppStore = create<AppState>()(
       followUps: [],
       taaraConversations: {},
       activeTaaraSessionId: {},
+      voiceCheckIns: [],
+
+      addVoiceCheckIn: (checkIn) =>
+        set((state) => ({
+          voiceCheckIns: [checkIn, ...state.voiceCheckIns.filter((v) => v.id !== checkIn.id)],
+        })),
 
       setSurvivorSession: ({ victimToken, docket, survivorName, accessToken, caseRecord }) =>
         set({
