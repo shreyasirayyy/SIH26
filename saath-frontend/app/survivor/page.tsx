@@ -42,12 +42,207 @@ export default function SurvivorHomePage() {
   const activeCase = caseRecord ?? currentCase ?? (docket ? { docket, currentStage: "Investigation", nextHearingDate: "2026-09-18" } as Partial<CaseRecord> : null);
   const displayName = survivorName?.trim() || caseRecord?.survivorName?.trim() || currentCase?.survivorName?.trim();
 
-  return <div className="px-5 pb-8 md:px-10 md:pb-14 xl:px-14">
-    <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end"><div><h1 className="font-display text-[42px] leading-[.98] text-text-primary md:text-[56px]">{copy.greeting}{displayName ? `, ${displayName}` : ""}</h1><p className="mt-4 text-lg text-text-secondary">{copy.enough}</p></div><div className="hidden items-center gap-2 text-xs text-text-secondary md:flex"> {copy.private}</div></div>
-    <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(330px,.75fr)]"><section className="space-y-5">
-      <div className="surface overflow-hidden rounded-[28px] p-6 md:p-8"><div className="space-y-3"><div className="inline-flex w-fit items-center rounded-full border border-[color:var(--border)] bg-[color:var(--surface-subtle)] px-2.5 py-1 text-[10px] font-bold uppercase tracking-[.18em] text-[color:var(--text-primary)]">Quick check-in</div><h2 className="font-display text-3xl text-text-primary md:text-[36px]">{copy.checkin}</h2><p className="text-sm leading-relaxed text-text-secondary">{copy.moodPrompt}</p></div><div className="mt-6 grid grid-cols-2 gap-3 lg:grid-cols-4">{moods.map(({ key, icon: Icon, tone }) => <button key={key} onClick={() => { setSelectedMood(key); }} className={`group flex min-h-[120px] flex-col items-start justify-between rounded-[20px] border p-4 text-left transition-all duration-200 ${selectedMood === key ? "border-[color:var(--primary-teal)] bg-[color:var(--primary-teal-dark)] ring-4 ring-[color:var(--primary-teal)]/10" : "border-border-color bg-[color:var(--surface)] hover:-translate-y-0.5 hover:border-[color:var(--primary-teal-light)] hover:shadow-sm"}`}><span className={`inline-flex h-10 w-10 items-center justify-center rounded-full ${tone}`}><Icon size={19} /></span><span className="block text-sm font-semibold leading-snug text-text-primary">{copy.moods[key]}</span>{selectedMood === key && <span className="flex items-center gap-1 text-[11px] font-bold text-[color:var(--primary-teal)]"><Check size={13} /> {copy.selected}</span>}</button>)}</div>{selectedMood && <div className="mt-5 flex items-center justify-between rounded-2xl bg-[color:var(--surface-subtle)] px-4 py-3 text-sm text-text-secondary"><span>{copy.noWrong}</span><Link href="/survivor/check-in" className="ml-3 whitespace-nowrap font-bold text-[color:var(--primary-teal)]">{copy.continue} <ArrowRight className="ml-1 inline" size={14} /></Link></div>}</div>
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-2"><Link href="/survivor/feel-better" className="surface-soft group rounded-[26px] p-6 hover:-translate-y-0.5 hover:shadow-lg"><div className="flex items-center justify-between"><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color:var(--surface)] text-[color:var(--primary-teal)] shadow-sm"><Wind size={19} /></div><ArrowRight size={18} /></div><h3 className="mt-6 font-display text-2xl text-text-primary">{copy.care}</h3><p className="mt-2 text-sm leading-relaxed text-text-secondary">{copy.careText}</p></Link><Link href="/survivor/check-in" className="surface-soft group rounded-[26px] bg-[color:var(--warning-bg)] p-6 hover:-translate-y-0.5 hover:shadow-lg"><div className="flex items-center justify-between"><div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color:var(--surface)] text-[color:var(--warning)] shadow-sm"><Mic2 size={19} /></div><ArrowRight size={18} /></div><h3 className="mt-6 font-display text-2xl text-[color:var(--text-primary)]">{copy.way}</h3><p className="mt-2 text-sm leading-relaxed text-[color:var(--text-secondary)]">{copy.wayText}</p></Link></div>
-    </section><aside className="space-y-5"><Sahayak /><div className="surface rounded-[26px] p-6"><div className="flex items-start justify-between"><div><p className="text-xs font-bold uppercase tracking-[.18em] text-text-secondary">{copy.case}</p>{activeCase ? <p className="mt-2 font-mono text-sm font-semibold text-text-primary">{activeCase.docket}</p> : <p className="mt-2 text-sm text-text-secondary">{copy.connect}</p>}</div><Link href={activeCase ? "/survivor/case" : "/connect-case"} aria-label={copy.case} className="rounded-full p-2 text-text-secondary hover:bg-[color:var(--surface-subtle)] hover:text-[color:var(--primary-teal)]"><ArrowRight size={18} /></Link></div>{activeCase && <><div className="mt-5 flex items-center gap-3 rounded-2xl bg-[color:var(--success-bg)] p-3"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-[color:var(--success-bg)] text-[color:var(--success)]"><Leaf size={17} /></span><div><p className="text-sm font-semibold text-[color:var(--success)]">{activeCase.currentStage ?? "Investigation"}</p><p className="mt-0.5 text-xs text-[color:var(--text-secondary)]">{copy.support}</p></div></div><div className="mt-5 flex items-center justify-between border-t border-border-color pt-4"><div className="flex items-center gap-2 text-xs text-text-secondary"><CalendarDays size={15} /> {copy.hearing}</div><span className="text-sm font-bold text-text-primary">{activeCase.nextHearingDate ? formatDate(activeCase.nextHearingDate) : "—"}</span></div></>}</div>
-    <div className="flex items-center gap-3 px-2 text-xs leading-relaxed text-text-secondary"><ShieldCheck size={16} className="shrink-0 text-sage" /> {copy.privacy}</div><div className="flex items-center gap-2 px-2 text-xs text-text-secondary"><Leaf size={13} /> {copy.demo}</div></aside></div>
-  </div>;
+  return (
+    <div className="px-5 pb-10 md:px-10 md:pb-16 xl:px-14">
+      {/* Editorial Header */}
+      <div className="mb-10 flex flex-col justify-between gap-4 md:flex-row md:items-end">
+        <div>
+          <h1 className="font-editorial text-[38px] leading-[1.05] tracking-tight text-text-primary md:text-[54px]">
+            {copy.greeting}
+            {displayName ? (
+              <>
+                , <span className="font-normal italic text-deep-teal">{displayName}</span>
+              </>
+            ) : (
+              ""
+            )}
+          </h1>
+          <p className="mt-3 text-base text-text-secondary md:text-lg">
+            {hindi ? (
+              <span>आप यहाँ हैं। <strong className="font-semibold text-text-primary">इतना काफ़ी है।</strong></span>
+            ) : (
+              <span>Take today <strong className="font-semibold text-text-primary">at your own pace.</strong></span>
+            )}
+          </p>
+        </div>
+        <div className="hidden items-center gap-2 text-xs font-medium text-text-secondary md:flex">
+          <ShieldCheck size={14} className="text-deep-teal" />
+          <span>{copy.private}</span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1.25fr)_minmax(330px,.75fr)]">
+        <section className="space-y-6">
+          {/* Quick Check-in Card */}
+          <div className="surface overflow-hidden rounded-[28px] p-6 md:p-8 transition-all hover:border-[color:var(--primary-teal-light)]/40">
+            <div className="space-y-3">
+              <div className="inline-flex w-fit items-center rounded-full border border-border-color/70 bg-[color:var(--surface-subtle)] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-text-secondary">
+                Quick check-in
+              </div>
+              <h2 className="font-editorial text-2xl text-text-primary md:text-[34px] leading-tight">
+                {hindi ? (
+                  <>आज आप <span className="italic text-deep-teal">कैसा महसूस</span> कर रहे हैं?</>
+                ) : (
+                  <>How are things <span className="italic text-deep-teal">feeling today?</span></>
+                )}
+              </h2>
+              <p className="text-sm leading-relaxed text-text-secondary max-w-xl">
+                {copy.moodPrompt}
+              </p>
+            </div>
+
+            <div className="mt-6 grid grid-cols-2 gap-3.5 lg:grid-cols-4">
+              {moods.map(({ key, icon: Icon, tone }) => (
+                <button
+                  key={key}
+                  onClick={() => setSelectedMood(key)}
+                  className={`group flex min-h-[124px] flex-col items-start justify-between rounded-2xl border p-4 text-left transition-all duration-200 ${
+                    selectedMood === key
+                      ? "border-[color:var(--primary-teal)] bg-[color:var(--primary-teal-dark)] ring-3 ring-[color:var(--primary-teal)]/15 shadow-sm"
+                      : "border-border-color bg-[color:var(--surface)] hover:-translate-y-0.5 hover:border-[color:var(--primary-teal-light)] hover:shadow-sm"
+                  }`}
+                >
+                  <span className={`inline-flex h-10 w-10 items-center justify-center rounded-full ${tone} transition-transform group-hover:scale-105`}>
+                    <Icon size={19} />
+                  </span>
+                  <span className="block text-sm font-semibold leading-snug text-text-primary">
+                    {copy.moods[key]}
+                  </span>
+                  {selectedMood === key && (
+                    <span className="flex items-center gap-1 text-[11px] font-bold text-[color:var(--primary-teal)]">
+                      <Check size={13} /> {copy.selected}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {selectedMood && (
+              <div className="mt-5 flex items-center justify-between rounded-2xl bg-[color:var(--surface-subtle)] px-4 py-3.5 text-sm text-text-secondary border border-border-color/50">
+                <span>{copy.noWrong}</span>
+                <Link
+                  href="/survivor/check-in"
+                  className="group ml-3 inline-flex items-center gap-1 whitespace-nowrap text-sm font-semibold text-deep-teal hover:underline"
+                >
+                  <span>{copy.continue}</span>
+                  <ArrowRight size={14} className="transition-transform duration-200 group-hover:translate-x-1" />
+                </Link>
+              </div>
+            )}
+          </div>
+
+          {/* Editorial Navigation Cards */}
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+            <Link
+              href="/survivor/feel-better"
+              className="surface-soft group rounded-[26px] p-6 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color:var(--surface)] text-deep-teal shadow-xs">
+                  <Wind size={19} />
+                </div>
+                <ArrowRight size={18} className="text-text-secondary transition-all duration-200 group-hover:translate-x-1 group-hover:text-deep-teal" />
+              </div>
+              <h3 className="mt-6 font-editorial text-2xl text-text-primary">
+                {hindi ? (
+                  <>आपके लिए <span className="italic text-deep-teal">कुछ</span></>
+                ) : (
+                  <>Something <span className="italic text-deep-teal">for you</span></>
+                )}
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-text-secondary">
+                {copy.careText}
+              </p>
+            </Link>
+
+            <Link
+              href="/survivor/check-in"
+              className="surface-soft group rounded-[26px] p-6 hover:-translate-y-0.5 hover:shadow-md transition-all duration-200"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-[color:var(--surface)] text-warm-peach shadow-xs">
+                  <Mic2 size={19} />
+                </div>
+                <ArrowRight size={18} className="text-text-secondary transition-all duration-200 group-hover:translate-x-1 group-hover:text-deep-teal" />
+              </div>
+              <h3 className="mt-6 font-editorial text-2xl text-text-primary">
+                {hindi ? (
+                  <>अपने तरीके से <span className="italic text-deep-teal">चेक-इन</span></>
+                ) : (
+                  <>Check in <span className="italic text-deep-teal">your way</span></>
+                )}
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-text-secondary">
+                {copy.wayText}
+              </p>
+            </Link>
+          </div>
+        </section>
+
+        {/* Sidebar Panel */}
+        <aside className="space-y-5">
+          <Sahayak />
+
+          {/* Case Card */}
+          <div className="surface rounded-[26px] p-6 transition-all hover:border-[color:var(--primary-teal-light)]/40">
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-text-secondary">
+                  {copy.case}
+                </p>
+                {activeCase ? (
+                  <p className="mt-2 font-mono text-sm font-semibold text-text-primary tracking-wide">
+                    {activeCase.docket}
+                  </p>
+                ) : (
+                  <p className="mt-2 text-sm text-text-secondary">{copy.connect}</p>
+                )}
+              </div>
+              <Link
+                href={activeCase ? "/survivor/case" : "/connect-case"}
+                aria-label={copy.case}
+                className="group rounded-full p-2 text-text-secondary hover:bg-[color:var(--surface-subtle)] hover:text-deep-teal transition-colors"
+              >
+                <ArrowRight size={18} className="transition-transform duration-200 group-hover:translate-x-0.5" />
+              </Link>
+            </div>
+
+            {activeCase && (
+              <>
+                <div className="mt-5 flex items-center gap-3 rounded-2xl bg-[color:var(--success-bg)] p-3.5">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[color:var(--surface)] text-[color:var(--success)] shadow-xs">
+                    <Leaf size={17} />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-[color:var(--success)]">
+                      {activeCase.currentStage ?? "Investigation"}
+                    </p>
+                    <p className="mt-0.5 text-xs text-text-secondary">{copy.support}</p>
+                  </div>
+                </div>
+
+                <div className="mt-5 flex items-center justify-between border-t border-border-color/60 pt-4">
+                  <div className="flex items-center gap-2 text-xs font-medium text-text-secondary">
+                    <CalendarDays size={15} /> {copy.hearing}
+                  </div>
+                  <span className="text-sm font-semibold text-text-primary">
+                    {activeCase.nextHearingDate ? formatDate(activeCase.nextHearingDate) : "—"}
+                  </span>
+                </div>
+              </>
+            )}
+          </div>
+
+          <div className="flex items-center gap-3 px-2 text-xs leading-relaxed text-text-secondary">
+            <ShieldCheck size={16} className="shrink-0 text-sage" />
+            <span>{copy.privacy}</span>
+          </div>
+          <div className="flex items-center gap-2 px-2 text-xs text-text-secondary">
+            <Leaf size={13} className="text-sage" />
+            <span>{copy.demo}</span>
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
 }

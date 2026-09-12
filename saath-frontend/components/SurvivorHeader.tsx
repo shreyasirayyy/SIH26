@@ -1,8 +1,8 @@
 "use client";
 
-import { Accessibility, Bell, Shield, X } from "lucide-react";
+import { Accessibility, Bell, LogOut, Settings, Shield, User, X } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { BackButton } from "@/components/BackButton";
 import { defaultAccessibilitySettings, useAppStore } from "@/store/useAppStore";
@@ -55,8 +55,11 @@ function SectionGroup({ title, children }: { title: string; children: React.Reac
 }
 
 export function SurvivorHeader() {
+  const router = useRouter();
   const language = useAppStore((state) => state.language);
   const setLanguage = useAppStore((state) => state.setLanguage);
+  const survivorName = useAppStore((state) => state.survivorName);
+  const logout = useAppStore((state) => state.logout);
   const accessibility = useAppStore((state) => state.accessibility);
   const setAccessibility = useAppStore((state) => state.setAccessibility);
   const resetAccessibility = useAppStore((state) => state.resetAccessibility);
@@ -65,26 +68,40 @@ export function SurvivorHeader() {
   const unreadCount = useAppStore((state) => state.unreadNotificationCount);
   const fetchNotifications = useAppStore((state) => state.fetchNotifications);
   const [isAccessibilityOpen, setIsAccessibilityOpen] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const panelButtonRef = useRef<HTMLButtonElement | null>(null);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
+
+  const displayName = survivorName?.trim() || "Sunita Kumari";
+  const userInitials = displayName
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((n) => n[0].toUpperCase())
+    .join("") || "SK";
 
   useEffect(() => {
     void fetchNotifications();
   }, [fetchNotifications]);
 
   useEffect(() => {
-    if (!isAccessibilityOpen) return;
+    if (!isAccessibilityOpen && !isProfileMenuOpen) return;
 
     const handlePointerDown = (event: MouseEvent) => {
       const target = event.target as Node;
       if (panelRef.current && !panelRef.current.contains(target) && panelButtonRef.current && !panelButtonRef.current.contains(target)) {
         setIsAccessibilityOpen(false);
       }
+      if (profileMenuRef.current && !profileMenuRef.current.contains(target)) {
+        setIsProfileMenuOpen(false);
+      }
     };
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsAccessibilityOpen(false);
+        setIsProfileMenuOpen(false);
       }
     };
 
@@ -95,7 +112,7 @@ export function SurvivorHeader() {
       document.removeEventListener("mousedown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isAccessibilityOpen]);
+  }, [isAccessibilityOpen, isProfileMenuOpen]);
 
   const hindi = language === "Hindi";
 
@@ -140,7 +157,7 @@ export function SurvivorHeader() {
           href="/survivor/notifications"
           aria-label={hindi ? `सूचनाएँ (${unreadCount} अपठित)` : `Notifications (${unreadCount} unread)`}
           title={hindi ? "सूचनाएँ" : "Notifications"}
-          className="relative rounded-full border border-border-color/70 bg-white/70 p-2.5 text-text-secondary hover:text-deep-teal"
+          className="relative rounded-full border border-border-color/70 bg-white/70 p-2.5 text-text-secondary hover:text-deep-teal transition-colors"
         >
           <Bell size={17} />
           {unreadCount > 0 && (
@@ -152,6 +169,71 @@ export function SurvivorHeader() {
             </span>
           )}
         </Link>
+
+        {/* Profile Avatar & Quick Menu */}
+        <div className="relative" ref={profileMenuRef}>
+          <button
+            type="button"
+            aria-haspopup="true"
+            aria-expanded={isProfileMenuOpen}
+            aria-label={hindi ? "प्रोफ़ाइल मेनू" : "Profile menu"}
+            onClick={() => setIsProfileMenuOpen((prev) => !prev)}
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-border-color/70 bg-white/80 text-xs font-bold text-deep-teal shadow-xs transition-all hover:border-[color:var(--primary-teal)] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0f766e] focus-visible:ring-offset-2"
+            title={displayName || (hindi ? "प्रोफ़ाइल" : "Profile")}
+          >
+            {userInitials}
+          </button>
+
+          {isProfileMenuOpen && (
+            <div
+              role="menu"
+              className="absolute right-0 top-[calc(100%+0.6rem)] z-50 w-56 rounded-2xl border border-border-color bg-[color:var(--surface)] p-2 shadow-[0_18px_40px_rgba(23,35,38,0.12)] backdrop-blur-md animate-in fade-in zoom-in-95 duration-150"
+            >
+              <div className="border-b border-border-color/60 px-3 py-2.5">
+                <p className="truncate text-xs font-bold text-text-primary">{displayName}</p>
+                <p className="truncate text-[11px] text-text-secondary">{hindi ? "सक्रिय सर्वाइवर सत्र" : "Active survivor session"}</p>
+              </div>
+
+              <div className="py-1">
+                <Link
+                  href="/survivor/profile"
+                  onClick={() => setIsProfileMenuOpen(false)}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-text-primary hover:bg-[color:var(--surface-subtle)] hover:text-deep-teal transition-colors"
+                  role="menuitem"
+                >
+                  <User size={15} />
+                  <span>{hindi ? "मेरी प्रोफ़ाइल" : "My profile"}</span>
+                </Link>
+
+                <Link
+                  href="/survivor/privacy"
+                  onClick={() => setIsProfileMenuOpen(false)}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-text-primary hover:bg-[color:var(--surface-subtle)] hover:text-deep-teal transition-colors"
+                  role="menuitem"
+                >
+                  <Settings size={15} />
+                  <span>{hindi ? "गोपनीयता और नियंत्रण" : "Privacy & settings"}</span>
+                </Link>
+              </div>
+
+              <div className="border-t border-border-color/60 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsProfileMenuOpen(false);
+                    logout();
+                    router.push("/landing");
+                  }}
+                  className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold text-warm-peach hover:bg-[#fbe6e0]/60 transition-colors"
+                  role="menuitem"
+                >
+                  <LogOut size={15} />
+                  <span>{hindi ? "साइन आउट" : "Sign out"}</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
         {isAccessibilityOpen && (
           <div id="saath-accessibility-panel" ref={panelRef} role="dialog" aria-modal="false" aria-label="Accessibility" className="absolute right-0 top-[calc(100%+0.75rem)] z-50 w-[min(25rem,calc(100vw-1.25rem))] overflow-hidden rounded-[1.5rem] border border-border-color bg-[color:var(--surface)] shadow-[0_18px_50px_rgba(23,35,38,0.14)] backdrop-blur-sm">
