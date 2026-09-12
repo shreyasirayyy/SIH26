@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { FileText, HeartHandshake, Home, Sparkles, Wind } from "lucide-react";
+import { FileText, HeartHandshake, Home, MessageSquareText, Sparkles, Wind } from "lucide-react";
 
 const items = [
   { href: "/survivor", label: "Home", icon: Home },
   { href: "/survivor/check-in", label: "Check-in", icon: HeartHandshake },
   { href: "/survivor/feel-better", label: "Feel better", icon: Wind },
+  { href: "/survivor/sahayak", label: "Sahayak", icon: MessageSquareText },
   { href: "/survivor/my-space", label: "My space", icon: FileText },
   { href: "/survivor/support", label: "Support", icon: Sparkles },
 ];

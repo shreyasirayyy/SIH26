@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FileText, HeartHandshake, Home, LogOut, Settings, Sparkles, UserRound, Wind } from "lucide-react";
+import { FileText, HeartHandshake, Home, LogOut, MessageSquareText, Settings, Sparkles, UserRound, Wind } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAppStore } from "@/store/useAppStore";
 
@@ -9,6 +9,7 @@ const items = [
   ["/survivor", "Home", "होम", Home],
   ["/survivor/check-in", "Check-in", "चेक-इन", HeartHandshake],
   ["/survivor/feel-better", "Feel better", "बेहतर महसूस करें", Wind],
+  ["/survivor/sahayak", "Sahayak", "सहायक", MessageSquareText],
   ["/survivor/my-space", "My space", "मेरी जगह", FileText],
   ["/survivor/support", "Support", "सहायता", Sparkles],
 ] as const;
