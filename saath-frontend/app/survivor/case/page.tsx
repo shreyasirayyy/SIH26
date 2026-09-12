@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
+import { ArrowLeft } from "lucide-react";
 import {
   ShieldAlert,
   Scale,
@@ -196,6 +198,10 @@ export default function MyCasePage() {
 
   return (
     <div className="px-5 pb-10 md:px-10 xl:px-14 space-y-6">
+      <Link href="/survivor/my-space" className="inline-flex items-center gap-2 text-sm font-semibold text-[#75857f]">
+        <ArrowLeft size={16} /> My space
+      </Link>
+
       <CaseHeader caseRecord={caseRecord} />
 
       <Card className="!p-6">

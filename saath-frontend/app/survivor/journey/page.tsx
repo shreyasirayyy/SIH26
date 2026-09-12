@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
-import { Check } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, Check } from "lucide-react";
 import { aiService } from "@/services/ai";
 
 export default function JourneyPage() {
@@ -25,7 +26,11 @@ export default function JourneyPage() {
 
   return (
     <div className="px-5 pb-10 md:px-10 xl:px-14">
-      <div>
+      <Link href="/survivor/my-space" className="inline-flex items-center gap-2 text-sm font-semibold text-[#75857f]">
+        <ArrowLeft size={16} /> My space
+      </Link>
+
+      <div className="mt-6">
         <p className="text-xs font-bold uppercase tracking-[.2em] text-[#7e918b]">My journey</p>
         <h1 className="mt-3 font-display text-5xl text-[#172326] md:text-6xl">Small steps still count.</h1>
         <p className="mt-4 max-w-2xl text-lg text-[#63736e]">A gentle view of your check-ins and the support around you — not a scorecard.</p>
