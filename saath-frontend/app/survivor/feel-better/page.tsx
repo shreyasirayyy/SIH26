@@ -5,7 +5,6 @@ import { useEffect, useState } from "react";
 import { EXERCISE_LIBRARY } from "@/data/exercises";
 import { useAppStore } from "@/store/useAppStore";
 import { aiService } from "@/services/ai";
-import { TAARA } from "@/components/TAARA";
 
 const iconMap: Record<string, any> = { Wind, Leaf, Moon, Ear, Sparkles, BookOpen };
 
@@ -39,29 +38,66 @@ export default function FeelBetterPage() {
         <h1 className="mt-3 font-display text-5xl leading-none text-[#172326] md:text-6xl">A little more room to breathe.</h1>
         <p className="mt-5 max-w-2xl text-lg leading-relaxed text-[#63736e]">Choose something that feels possible right now. You can stop at any time — nothing here needs to be completed.</p>
       </div>
-      <div className="mt-8 max-w-xl"><TAARA compact /></div>
-      
-      <div className="mt-10 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
         {sortedExercises.map((exercise) => {
           const Icon = iconMap[exercise.icon];
           const isRecommended = exercise.priority < 3;
           return (
-            <Link href={exercise.href} key={exercise.id} className={`surface group rounded-[26px] p-6 hover:-translate-y-1 hover:shadow-xl ${isRecommended ? 'border-2 border-deep-teal' : ''}`}>
-              <div className="flex items-start justify-between">
-                <span className={`flex h-12 w-12 items-center justify-center rounded-2xl ${exercise.tone}`}><Icon size={22} /></span>
-                <ArrowRight size={18} className="text-[#9aaba4] transition-transform group-hover:translate-x-1" />
+            <Link
+              href={exercise.href}
+              key={exercise.id}
+              className={`surface group relative flex flex-col justify-between overflow-hidden rounded-[26px] p-6 transition-all duration-200 hover:-translate-y-1 hover:shadow-xl ${
+                isRecommended ? "border-2 border-deep-teal ring-4 ring-deep-teal/10" : ""
+              }`}
+            >
+              <div>
+                <div className="flex items-start justify-between">
+                  <span className={`flex h-12 w-12 items-center justify-center rounded-2xl ${exercise.tone}`}>
+                    <Icon size={22} />
+                  </span>
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--surface-subtle)] text-[#7e918b] transition-transform group-hover:translate-x-0.5 group-hover:text-deep-teal">
+                    <ArrowRight size={16} />
+                  </span>
+                </div>
+                <h2 className="mt-6 font-display text-2xl text-[#243630]">{exercise.title}</h2>
+                {isRecommended && (
+                  <p className="mt-1 inline-block rounded-md bg-[color:var(--primary-teal-dark)]/15 px-2 py-0.5 text-xs font-bold text-deep-teal">
+                    {exercise.reason}
+                  </p>
+                )}
+                <p className="mt-2 min-h-12 text-sm leading-relaxed text-[#6b7b75]">{exercise.desc}</p>
               </div>
-              <h2 className="mt-7 font-display text-2xl text-[#243630]">{exercise.title}</h2>
-              {isRecommended && <p className="text-xs font-bold text-deep-teal mt-1">{exercise.reason}</p>}
-              <p className="mt-2 min-h-12 text-sm leading-relaxed text-[#6b7b75]">{exercise.desc}</p>
-              <div className="mt-5 flex items-center gap-2 text-xs font-bold text-[#0f766e]"><Play size={13} /> {exercise.time}</div>
+              <div className="mt-5 flex items-center gap-2 text-xs font-bold text-[#0f766e]">
+                <Play size={13} /> {exercise.time}
+              </div>
             </Link>
           );
         })}
-        <div className="surface group rounded-[26px] p-6 border-2 border-dashed border-border-color flex flex-col justify-center items-center text-center">
-          <h2 className="font-display text-xl text-[#243630]">Need something else?</h2>
-          <p className="mt-2 text-sm text-[#6b7b75]">Tell us what you need right now.</p>
-          <Link href="/survivor/taara" className="mt-4 rounded-full bg-[#0f766e] px-5 py-2 text-sm font-bold text-white">Ask TAARA</Link>
+      </div>
+
+      {/* Prominent, dedicated TAARA Quiet Space banner */}
+      <div className="mt-10 overflow-hidden rounded-[30px] border border-deep-teal/20 bg-gradient-to-br from-[#0c4e48] via-[#0f766e] to-[#16554f] p-8 text-white shadow-[0_20px_45px_rgba(15,118,110,.25)] md:p-10">
+        <div className="relative flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
+          <div className="max-w-2xl space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3.5 py-1 text-xs font-bold uppercase tracking-[.2em] text-[#a7f3d0] backdrop-blur-md">
+              <Sparkles size={13} className="text-[#a7f3d0]" />
+              TAARA · Your Gentle Guide
+            </div>
+            <h2 className="font-display text-3xl leading-tight text-white md:text-4xl">
+              One step at a time. You don&apos;t have to figure everything out right now.
+            </h2>
+            <p className="text-base leading-relaxed text-white/80">
+              Need something else or just a quiet conversation? TAARA is here to listen, ground you, and stay by your side with no pressure.
+            </p>
+          </div>
+
+          <Link
+            href="/survivor/taara"
+            className="group inline-flex shrink-0 items-center gap-3 rounded-full bg-white px-7 py-3.5 text-sm font-bold text-[#0f766e] shadow-lg transition-all hover:bg-[#e6f7f2] hover:shadow-xl hover:scale-105"
+          >
+            <span>Talk to TAARA</span>
+            <ArrowRight size={17} className="transition-transform group-hover:translate-x-1" />
+          </Link>
         </div>
       </div>
     </div>
