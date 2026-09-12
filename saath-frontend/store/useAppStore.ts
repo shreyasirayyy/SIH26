@@ -8,6 +8,15 @@ export type MonitoringState = "active" | "paused" | "stopped";
 export type AccessibilityTextSize = "small" | "default" | "large" | "extra-large";
 export type AccessibilityTextAlign = "left" | "center" | "justify";
 
+export type SahayakMessage = {
+  role: "user" | "assistant";
+  text: string;
+};
+
+export const defaultSahayakConversation: SahayakMessage[] = [
+  { role: "assistant", text: "Hi, I am Sahayak. I am here to listen. How have things been with your case or your day?" },
+];
+
 export interface AccessibilitySettings {
   textSize: AccessibilityTextSize;
   pageZoom: number;
@@ -64,6 +73,7 @@ interface AppState {
   monitoring: MonitoringState;
   language: string;
   accessibility: AccessibilitySettings;
+  sahayakConversation: SahayakMessage[];
 
   setSurvivorSession: (opts: {
     victimToken: string;
@@ -78,6 +88,8 @@ interface AppState {
   setLanguage: (lang: string) => void;
   setAccessibility: (patch: Partial<AccessibilitySettings>) => void;
   resetAccessibility: () => void;
+  appendSahayakConversation: (messages: SahayakMessage[]) => void;
+  resetSahayakConversation: () => void;
   logout: () => void;
 }
 
@@ -95,6 +107,7 @@ export const useAppStore = create<AppState>()(
       monitoring: "active",
       language: "English",
       accessibility: defaultAccessibilitySettings,
+      sahayakConversation: defaultSahayakConversation,
 
       setSurvivorSession: ({ victimToken, docket, survivorName, accessToken, caseRecord }) =>
         set({
@@ -133,6 +146,11 @@ export const useAppStore = create<AppState>()(
           return { accessibility: next };
         }),
       resetAccessibility: () => set({ accessibility: defaultAccessibilitySettings }),
+      appendSahayakConversation: (messages) =>
+        set((state) => ({
+          sahayakConversation: [...state.sahayakConversation, ...messages],
+        })),
+      resetSahayakConversation: () => set({ sahayakConversation: defaultSahayakConversation }),
       logout: () =>
         set({
           role: null,
@@ -145,6 +163,7 @@ export const useAppStore = create<AppState>()(
           voiceConsent: false,
           monitoring: "active",
           accessibility: defaultAccessibilitySettings,
+          sahayakConversation: defaultSahayakConversation,
         }),
     }),
     { name: "saath-demo-session" }

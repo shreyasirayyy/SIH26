@@ -7,11 +7,10 @@ import { aiService } from "@/services/ai";
 import { useAppStore } from "@/store/useAppStore";
 
 export function Sahayak({ fullPage = false }: { fullPage?: boolean }) {
-  const { currentCase } = useAppStore();
+  const currentCase = useAppStore((state) => state.currentCase);
+  const conversation = useAppStore((state) => state.sahayakConversation);
+  const appendSahayakConversation = useAppStore((state) => state.appendSahayakConversation);
   const [message, setMessage] = useState("");
-  const [conversation, setConversation] = useState<Array<{ role: "user" | "assistant"; text: string }>>([
-    { role: "assistant", text: "Hi, I am Sahayak. I am here to listen. How have things been with your case or your day?" },
-  ]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -23,7 +22,10 @@ export function Sahayak({ fullPage = false }: { fullPage?: boolean }) {
     setError(null);
     try {
       const result = await aiService.getSahayakPrediction(text, currentCase?.id, conversation);
-      setConversation((items) => [...items, { role: "user", text }, { role: "assistant", text: result.reply }]);
+      appendSahayakConversation([
+        { role: "user", text },
+        { role: "assistant", text: result.reply },
+      ]);
       setMessage("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Sahayak is temporarily unavailable.");
