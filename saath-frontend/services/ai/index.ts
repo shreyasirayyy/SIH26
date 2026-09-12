@@ -82,6 +82,13 @@ export const aiService = {
     return apiRequest("/api/v1/check-ins/history");
   },
 
+  async submitIvrsCheckIn(language: string, responses: Record<string, string>, requestCounsellorCall = false) {
+    return apiRequest("/api/v1/check-ins/ivrs", {
+      method: "POST",
+      body: JSON.stringify({ language, responses, requestCounsellorCall }),
+    });
+  },
+
   async getCounsellorVoiceCheckIns() {
     return apiRequest<
       Array<{
