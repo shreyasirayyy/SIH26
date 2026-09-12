@@ -24,7 +24,27 @@ export default function CounsellorOverviewPage() {
   const counsellorProfile = useAppStore((s) => s.counsellorProfile);
   const followUps = useAppStore((s) => s.followUps);
   const [cases, setCases] = useState<CaseRecord[]>([]);
-  const [voiceCheckIns, setVoiceCheckIns] = useState<Array<{ id: string; createdAt: string; transcript?: string }>>([]);
+  const [voiceCheckIns, setVoiceCheckIns] = useState<
+    Array<{
+      id: string;
+      victimToken?: string;
+      survivorName?: string;
+      docket?: string;
+      createdAt: string;
+      transcript?: string;
+      channel?: string;
+      requestCounsellorCall?: boolean;
+      signals?: {
+        sleep?: number;
+        socialConnectedness?: number;
+        mood?: number;
+        fear?: number;
+        perceivedSafety?: number;
+        distressScore?: number;
+        summary?: string;
+      };
+    }>
+  >([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -135,13 +155,56 @@ export default function CounsellorOverviewPage() {
 
       {voiceCheckIns.length > 0 && (
         <section className="rounded-2xl border border-border-color bg-pale-sage/40 p-4">
-          <p className="flex items-center gap-2 text-sm font-semibold text-deep-teal"><Mic size={15} /> Voice check-ins awaiting review</p>
+          <p className="flex items-center gap-2 text-sm font-semibold text-deep-teal">
+            <Mic size={15} /> Voice check-ins awaiting review
+          </p>
           <div className="mt-3 space-y-2">
-            {voiceCheckIns.slice(0, 3).map((item) => (
-              <div key={item.id} className="rounded-xl bg-white p-3 text-sm">
-                <p className="text-xs text-text-secondary">{new Date(item.createdAt).toLocaleString()}</p>
-                <p className="mt-1">{item.transcript ?? "Transcript unavailable"}</p>
-              </div>
+            {voiceCheckIns.slice(0, 5).map((item) => (
+              <Link
+                key={item.id}
+                href={item.victimToken ? `/counsellor/cases/${item.victimToken}` : "#"}
+                className="block rounded-xl bg-white p-3.5 text-sm hover:border-deep-teal border border-transparent transition-colors shadow-sm"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-semibold text-text-primary">
+                    {item.survivorName ?? "Unknown survivor"}
+                    {item.docket ? (
+                      <span className="ml-2 font-mono text-xs text-text-secondary">{item.docket}</span>
+                    ) : null}
+                  </p>
+                  {item.requestCounsellorCall && (
+                    <span className="shrink-0 rounded-full bg-[#a2542f]/10 px-2.5 py-0.5 text-xs font-semibold text-[#a2542f]">
+                      Call requested
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-text-secondary">
+                  {new Date(item.createdAt).toLocaleString()}
+                  {item.channel ? ` · ${item.channel === "ivrs" ? "Phone (IVRS)" : "Voice check-in"}` : " · Voice check-in"}
+                </p>
+                <p className="mt-1.5 text-sm text-text-primary italic">
+                  &ldquo;{item.transcript ?? "Transcript unavailable"}&rdquo;
+                </p>
+                {item.signals && (
+                  <div className="mt-2.5 flex flex-wrap gap-1.5 text-[11px]">
+                    {typeof item.signals.sleep === "number" && (
+                      <span className="rounded-md bg-pale-sage px-2 py-0.5 font-medium text-deep-teal">
+                        Sleep difficulty: {item.signals.sleep}/5
+                      </span>
+                    )}
+                    {typeof item.signals.socialConnectedness === "number" && (
+                      <span className="rounded-md bg-greenish-cream px-2 py-0.5 font-medium text-text-secondary">
+                        Engagement: {item.signals.socialConnectedness}/5
+                      </span>
+                    )}
+                    {typeof item.signals.distressScore === "number" && (
+                      <span className="rounded-md bg-amber/15 px-2 py-0.5 font-medium text-[#a2542f]">
+                        Distress: {item.signals.distressScore}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </Link>
             ))}
           </div>
         </section>
