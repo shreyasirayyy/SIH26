@@ -22,10 +22,9 @@ export function StaffTopNav({ role, children }: { role: "counsellor" | "admin"; 
       ]
     : [
         { href: "/admin", label: "Overview", icon: LayoutDashboard },
-        { href: "/admin", label: "Regions", icon: UsersRound },
-        { href: "/admin", label: "Cases", icon: ClipboardList },
-        { href: "/admin", label: "Reports", icon: FileBarChart },
-        { href: "/admin", label: "Settings", icon: Settings },
+        { href: "/admin/cases", label: "Cases", icon: ClipboardList },
+        { href: "/admin/reports", label: "Reports", icon: FileBarChart },
+        { href: "/admin/settings", label: "Settings", icon: Settings },
       ];
 
   function signOut() { logout(); router.push("/landing"); }

@@ -36,6 +36,23 @@ export type TaaraMessage = {
   createdAt: string;
 };
 
+// A TAARA "session" is one saved conversation thread, so the chat UI can
+// show history in a sidebar, reopen a past thread, or delete one — instead
+// of there being just a single running conversation per survivor.
+export type TaaraSession = {
+  id: string;
+  title: string;
+  messages: TaaraMessage[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+function makeTaaraSessionTitle(text: string): string {
+  const clean = text.trim().replace(/\s+/g, " ");
+  if (!clean) return "New chat";
+  return clean.length > 40 ? `${clean.slice(0, 40)}…` : clean;
+}
+
 export interface AccessibilitySettings {
   textSize: AccessibilityTextSize;
   pageZoom: number;
@@ -97,7 +114,10 @@ interface AppState {
   followUps: FollowUpItem[];
   // Keyed by victimToken so history stays scoped to whoever is logged in on
   // this device and survives logout/login (persisted via localStorage below).
-  taaraConversations: Record<string, TaaraMessage[]>;
+  // Each owner now holds a list of TAARA chat sessions (history), not just
+  // one running conversation, so a session can be opened or deleted.
+  taaraConversations: Record<string, TaaraSession[]>;
+  activeTaaraSessionId: Record<string, string>;
 
   setSurvivorSession: (opts: {
     victimToken: string;
@@ -117,8 +137,11 @@ interface AppState {
   resetSahayakConversation: () => void;
   addFollowUp: (item: FollowUpItem) => void;
   markFollowUpComplete: (id: string) => void;
-  appendTaaraMessage: (ownerKey: string, message: TaaraMessage) => void;
-  clearTaaraConversation: (ownerKey: string) => void;
+  ensureTaaraSession: (ownerKey: string) => string;
+  startNewTaaraSession: (ownerKey: string) => string;
+  setActiveTaaraSession: (ownerKey: string, sessionId: string) => void;
+  appendTaaraMessage: (ownerKey: string, sessionId: string, message: TaaraMessage) => void;
+  deleteTaaraSession: (ownerKey: string, sessionId: string) => void;
   logout: () => void;
 }
 
@@ -140,6 +163,7 @@ export const useAppStore = create<AppState>()(
       sahayakConversation: defaultSahayakConversation,
       followUps: [],
       taaraConversations: {},
+      activeTaaraSessionId: {},
 
       setSurvivorSession: ({ victimToken, docket, survivorName, accessToken, caseRecord }) =>
         set({
@@ -189,17 +213,64 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           followUps: state.followUps.map((f) => (f.id === id ? { ...f, status: "COMPLETED" } : f)),
         })),
-      appendTaaraMessage: (ownerKey, message) =>
+      ensureTaaraSession: (ownerKey) => {
+        const state = get();
+        const existing = state.taaraConversations[ownerKey] ?? [];
+        const activeId = state.activeTaaraSessionId[ownerKey];
+        if (activeId && existing.some((s) => s.id === activeId)) return activeId;
+        if (existing.length > 0) {
+          const mostRecent = [...existing].sort(
+            (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+          )[0].id;
+          set((s) => ({ activeTaaraSessionId: { ...s.activeTaaraSessionId, [ownerKey]: mostRecent } }));
+          return mostRecent;
+        }
+        return get().startNewTaaraSession(ownerKey);
+      },
+      startNewTaaraSession: (ownerKey) => {
+        const id = crypto.randomUUID();
+        const now = new Date().toISOString();
+        const session: TaaraSession = { id, title: "New chat", messages: [], createdAt: now, updatedAt: now };
         set((state) => ({
           taaraConversations: {
             ...state.taaraConversations,
-            [ownerKey]: [...(state.taaraConversations[ownerKey] ?? []), message],
+            [ownerKey]: [session, ...(state.taaraConversations[ownerKey] ?? [])],
           },
-        })),
-      clearTaaraConversation: (ownerKey) =>
+          activeTaaraSessionId: { ...state.activeTaaraSessionId, [ownerKey]: id },
+        }));
+        return id;
+      },
+      setActiveTaaraSession: (ownerKey, sessionId) =>
         set((state) => ({
-          taaraConversations: { ...state.taaraConversations, [ownerKey]: [] },
+          activeTaaraSessionId: { ...state.activeTaaraSessionId, [ownerKey]: sessionId },
         })),
+      appendTaaraMessage: (ownerKey, sessionId, message) =>
+        set((state) => {
+          const sessions = state.taaraConversations[ownerKey] ?? [];
+          const updated = sessions.map((s) => {
+            if (s.id !== sessionId) return s;
+            const isFirstUserMessage = s.title === "New chat" && message.from === "user";
+            return {
+              ...s,
+              messages: [...s.messages, message],
+              updatedAt: message.createdAt,
+              title: isFirstUserMessage ? makeTaaraSessionTitle(message.text) : s.title,
+            };
+          });
+          return { taaraConversations: { ...state.taaraConversations, [ownerKey]: updated } };
+        }),
+      deleteTaaraSession: (ownerKey, sessionId) =>
+        set((state) => {
+          const remaining = (state.taaraConversations[ownerKey] ?? []).filter((s) => s.id !== sessionId);
+          const wasActive = state.activeTaaraSessionId[ownerKey] === sessionId;
+          return {
+            taaraConversations: { ...state.taaraConversations, [ownerKey]: remaining },
+            activeTaaraSessionId: {
+              ...state.activeTaaraSessionId,
+              [ownerKey]: wasActive ? remaining[0]?.id ?? "" : state.activeTaaraSessionId[ownerKey],
+            },
+          };
+        }),
       logout: () =>
         set({
           role: null,
@@ -216,6 +287,39 @@ export const useAppStore = create<AppState>()(
           sahayakConversation: defaultSahayakConversation,
         }),
     }),
-    { name: "saath-demo-session" }
+    {
+      name: "saath-demo-session",
+      version: 1,
+      // v0 stored taaraConversations as Record<ownerKey, TaaraMessage[]> (a
+      // single running conversation per survivor). v1 stores it as
+      // Record<ownerKey, TaaraSession[]> so history can be listed, opened,
+      // and deleted. Wrap any old-shape data into one session per owner
+      // instead of dropping it.
+      migrate: (persistedState: any, version) => {
+        if (version < 1 && persistedState?.taaraConversations) {
+          const migrated: Record<string, TaaraSession[]> = {};
+          for (const [ownerKey, value] of Object.entries(persistedState.taaraConversations as Record<string, unknown>)) {
+            const messages = Array.isArray(value) ? (value as TaaraMessage[]) : [];
+            if (messages.length === 0) {
+              migrated[ownerKey] = [];
+              continue;
+            }
+            const firstUserMsg = messages.find((m) => m.from === "user");
+            migrated[ownerKey] = [
+              {
+                id: crypto.randomUUID(),
+                title: firstUserMsg ? makeTaaraSessionTitle(firstUserMsg.text) : "New chat",
+                messages,
+                createdAt: messages[0].createdAt,
+                updatedAt: messages[messages.length - 1].createdAt,
+              },
+            ];
+          }
+          persistedState.taaraConversations = migrated;
+          persistedState.activeTaaraSessionId = {};
+        }
+        return persistedState;
+      },
+    }
   )
 );
