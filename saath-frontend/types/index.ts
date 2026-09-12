@@ -49,7 +49,9 @@ export interface CaseRecord {
   financialReliefEligible?: boolean;
   lastPaymentDate?: string | null;
   previousThreatReported?: boolean;
+  threatLastReported?: string | null;
   protectionRequested?: boolean;
+  protectionOfficerAssigned?: string | null;
   relocationRequested?: boolean;
   monitoringStarted?: string;
   baselineCompleted?: boolean;
