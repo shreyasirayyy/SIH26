@@ -168,3 +168,24 @@ export interface CounsellorSummary {
   status?: string;
   casesAssigned?: number;
 }
+
+export type NotificationType =
+  | "case_connected"
+  | "case_stage_updated"
+  | "upcoming_hearing"
+  | "counsellor_assigned"
+  | "counselling_appointment"
+  | "legal_protection_update"
+  | "financial_relief_update"
+  | "daily_checkin";
+
+export interface NotificationItem {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  createdAt: string;
+  read: boolean;
+  priority: "high" | "medium" | "low";
+  metadata?: Record<string, unknown>;
+}

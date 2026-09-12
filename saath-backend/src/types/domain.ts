@@ -80,3 +80,24 @@ export interface Counsellor {
   lastLogin?: string | null;
 }
 export interface TimelineEvent { id: string; caseId: string; date: string; type: 'case'|'support'|'wellbeing'; label: string; metadata?: Record<string, unknown>; }
+
+export type NotificationType =
+  | 'case_connected'
+  | 'case_stage_updated'
+  | 'upcoming_hearing'
+  | 'counsellor_assigned'
+  | 'counselling_appointment'
+  | 'legal_protection_update'
+  | 'financial_relief_update'
+  | 'daily_checkin';
+
+export interface CaseNotification {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  createdAt: string;
+  read: boolean;
+  priority: 'high' | 'medium' | 'low';
+  metadata?: Record<string, unknown>;
+}

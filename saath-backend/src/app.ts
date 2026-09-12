@@ -3,6 +3,7 @@ import cors from 'cors'; import helmet from 'helmet'; import rateLimit from 'exp
 import jwt from 'jsonwebtoken';
 import { z } from 'zod'; import { randomUUID } from 'node:crypto';
 import { corsOrigins, env } from './config/env.js'; import { store, id, supabase, supabaseSelect, supabaseInsert } from './db/store.js'; import { AppError, asyncRoute, fail, ok, requestId } from './utils/http.js'; import { normalizeEmail, normalizePhone, notificationProvider, deliverToContact } from './services/notifications.js';
+import { syncSurvivorNotifications } from './services/case-notifications.js';
 import { generateEscalation, latestEscalation, getEscalatedMessage as getEscalatedReminder, nextEscalationStage } from './services/escalation.js'; import { requireAuth, requireRoles, signUser, type AuthedRequest } from './middleware/auth.js'; import { analyzeText, analyzeVoice, detectCrisisLanguage } from './services/ml.js'; import { respondToTaara } from './services/taara/index.js'; import { findEligibleCase, syncCaseStage } from './services/case/case.service.js';
 import { trackCheckinCompletion, trackFollowUpResponse, computeEngagementTrend } from './services/engagement.js';
 import { recomputeBaseline, generateDistressScore, generateRecoveryScore } from './services/distress-engine.js';
@@ -154,6 +155,7 @@ const connectCaseByDocket = async (req: { body: { reference_id?: string; docket?
   ensureUserRecord(user);
   const accessToken = signUser(user);
   record(`user:${user.id}:cases`, found.id);
+  syncSurvivorNotifications(user.id, found, store);
   return ok(res, { case: safeCase(withResolvedCounsellor(found)), accessToken, tokenType: 'Bearer', user:{id:user.id,role:user.role,victimToken:user.victimToken} });
 };
 const caseReferenceSchema = z.object({ reference_id:z.string().min(3).optional(), docket:z.string().min(3).optional() }).refine(x=>Boolean(x.reference_id ?? x.docket), 'reference_id is required');
@@ -923,7 +925,48 @@ app.post('/api/v1/community/moderation-queue/:id/decision', requireAuth, require
   return ok(res, item);
 }));
 app.post('/api/v1/notifications/sms',requireAuth,body(z.object({phone:z.string().min(8),message:z.string().min(1).max(480)})),asyncRoute(async(req:AuthedRequest,res)=>{await notificationProvider.sendMessage(normalizePhone(req.body.phone),req.body.message); return ok(res,{status:'sent',channel:'sms'},202)}));
-app.get('/api/v1/notifications',requireAuth,asyncRoute(async(req:AuthedRequest,res)=>ok(res,store.records.get(`notifications:${req.user!.id}`)||[]))); app.patch('/api/v1/notifications/:id/read',requireAuth,asyncRoute(async(req,res)=>ok(res,{id:req.params.id,read:true})));
+app.get('/api/v1/notifications', requireAuth, asyncRoute(async (req: AuthedRequest, res) => {
+  if (req.user!.role === 'SURVIVOR') {
+    const userCase = store.cases.find(
+      (c) =>
+        c.victimToken === req.user!.victimToken ||
+        c.id === req.user!.id.replace('docket-', '') ||
+        (store.records.get(`user:${req.user!.id}:cases`) || []).includes(c.id)
+    );
+    if (userCase) {
+      const notifs = syncSurvivorNotifications(req.user!.id, userCase, store);
+      return ok(res, notifs);
+    }
+  }
+  return ok(res, store.records.get(`notifications:${req.user!.id}`) || []);
+}));
+
+const markSingleNotificationRead = (req: AuthedRequest, res: express.Response) => {
+  const notifs: any[] = store.records.get(`notifications:${req.user!.id}`) || [];
+  const targetId = req.params.id;
+  const target = notifs.find((n) => n.id === targetId);
+  if (target) {
+    target.read = true;
+  }
+  store.records.set(`notifications:${req.user!.id}`, notifs);
+  return ok(res, { id: targetId, read: true });
+};
+
+app.patch('/api/v1/notifications/:id/read', requireAuth, asyncRoute(async (req: AuthedRequest, res) => markSingleNotificationRead(req, res)));
+app.post('/api/v1/notifications/:id/read', requireAuth, asyncRoute(async (req: AuthedRequest, res) => markSingleNotificationRead(req, res)));
+
+const markAllNotificationsRead = (req: AuthedRequest, res: express.Response) => {
+  const notifs: any[] = store.records.get(`notifications:${req.user!.id}`) || [];
+  notifs.forEach((n) => {
+    n.read = true;
+  });
+  store.records.set(`notifications:${req.user!.id}`, notifs);
+  return ok(res, { markedAllRead: true, count: notifs.length });
+};
+
+app.post('/api/v1/notifications/mark-all-read', requireAuth, asyncRoute(async (req: AuthedRequest, res) => markAllNotificationsRead(req, res)));
+app.patch('/api/v1/notifications/read-all', requireAuth, asyncRoute(async (req: AuthedRequest, res) => markAllNotificationsRead(req, res)));
+
 // Shared helper for the three dedicated ADM routes and the generic /admin/:scope
 // fallback below — pulls interventions once so each route doesn't repeat the scan.
 const collectInterventions = () => [...store.records.entries()].flatMap(([key, values]) => key.startsWith('interventions:') ? values : []);

@@ -62,14 +62,15 @@ export function SurvivorHeader() {
   const resetAccessibility = useAppStore((state) => state.resetAccessibility);
   const pathname = usePathname();
   const hideLanguageSelector = pathname?.startsWith("/survivor/check-in/ivrs");
-  const [hasNotifications, setHasNotifications] = useState(false);
+  const unreadCount = useAppStore((state) => state.unreadNotificationCount);
+  const fetchNotifications = useAppStore((state) => state.fetchNotifications);
   const [isAccessibilityOpen, setIsAccessibilityOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const panelButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
-    notificationService.getNotifications().then((items) => setHasNotifications(items.length > 0)).catch(() => setHasNotifications(false));
-  }, []);
+    void fetchNotifications();
+  }, [fetchNotifications]);
 
   useEffect(() => {
     if (!isAccessibilityOpen) return;
@@ -135,10 +136,23 @@ export function SurvivorHeader() {
         <Link href="/survivor/safety" aria-label={hindi ? "सुरक्षा संसाधन" : "Safety resources"} title={hindi ? "सुरक्षा संसाधन" : "Safety resources"} className="rounded-full border border-[#e4b7a8]/70 bg-[#fbe6e0]/70 p-2.5 text-[#a15f4e] hover:bg-[#fbe6e0]">
           <Shield size={17} />
         </Link>
-        <Link href="/survivor/notifications" aria-label={hindi ? "सूचनाएँ खोलें" : "Open notifications"} title={hindi ? "सूचनाएँ" : "Notifications"} className="relative rounded-full border border-border-color/70 bg-white/70 p-2.5 text-text-secondary hover:text-deep-teal">
+        <Link
+          href="/survivor/notifications"
+          aria-label={hindi ? `सूचनाएँ (${unreadCount} अपठित)` : `Notifications (${unreadCount} unread)`}
+          title={hindi ? "सूचनाएँ" : "Notifications"}
+          className="relative rounded-full border border-border-color/70 bg-white/70 p-2.5 text-text-secondary hover:text-deep-teal"
+        >
           <Bell size={17} />
-          {hasNotifications && <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-warm-peach" />}
+          {unreadCount > 0 && (
+            <span
+              aria-label={`${unreadCount} unread`}
+              className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-warm-peach px-1 text-[10px] font-bold text-white shadow-sm"
+            >
+              {unreadCount > 99 ? "99+" : unreadCount}
+            </span>
+          )}
         </Link>
+
         {isAccessibilityOpen && (
           <div id="saath-accessibility-panel" ref={panelRef} role="dialog" aria-modal="false" aria-label="Accessibility" className="absolute right-0 top-[calc(100%+0.75rem)] z-50 w-[min(25rem,calc(100vw-1.25rem))] overflow-hidden rounded-[1.5rem] border border-border-color bg-[color:var(--surface)] shadow-[0_18px_50px_rgba(23,35,38,0.14)] backdrop-blur-sm">
             <div className="flex items-start justify-between border-b border-border-color px-4 py-3.5">
