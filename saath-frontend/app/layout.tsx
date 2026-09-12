@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
+import { AccessibilityProvider } from "@/components/AccessibilityProvider";
 
 export const metadata: Metadata = {
   title: "SAATH — Support After A Trauma, Healing",
@@ -28,6 +29,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-warm-cream text-text-primary">
+        <AccessibilityProvider />
         {children}
         <ServiceWorkerRegister />
       </body>
