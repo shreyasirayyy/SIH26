@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { CaseRecord, Role } from "@/types";
+import { CaseRecord, CounsellorProfile, Role } from "@/types";
 
 export type MonitoringState = "active" | "paused" | "stopped";
 export type AccessibilityTextSize = "small" | "default" | "large" | "extra-large";
@@ -80,6 +80,7 @@ interface AppState {
   survivorName: string | null;
   accessToken: string | null;
   currentCase: CaseRecord | null;
+  counsellorProfile: CounsellorProfile | null;
   consentGiven: boolean;
   voiceConsent: boolean;
   monitoring: MonitoringState;
@@ -96,6 +97,7 @@ interface AppState {
     caseRecord?: CaseRecord | null;
   }) => void;
   setStaffRole: (role: Role) => void;
+  setCounsellorProfile: (profile: CounsellorProfile | null) => void;
   setConsent: (consent: boolean, voiceConsent: boolean) => void;
   setMonitoring: (state: MonitoringState) => void;
   setLanguage: (lang: string) => void;
@@ -117,6 +119,7 @@ export const useAppStore = create<AppState>()(
       survivorName: null,
       accessToken: null,
       currentCase: null,
+      counsellorProfile: null,
       consentGiven: false,
       voiceConsent: false,
       monitoring: "active",
@@ -135,6 +138,7 @@ export const useAppStore = create<AppState>()(
           currentCase: caseRecord ?? get().currentCase,
         }),
       setStaffRole: (role) => set({ role }),
+      setCounsellorProfile: (counsellorProfile) => set({ counsellorProfile }),
       setConsent: (consentGiven, voiceConsent) => set({ consentGiven, voiceConsent }),
       setMonitoring: (monitoring) => set({ monitoring }),
       setLanguage: (language) => set({ language }),
@@ -180,6 +184,7 @@ export const useAppStore = create<AppState>()(
           survivorName: null,
           accessToken: null,
           currentCase: null,
+          counsellorProfile: null,
           consentGiven: false,
           voiceConsent: false,
           monitoring: "active",

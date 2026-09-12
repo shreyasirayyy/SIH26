@@ -3,13 +3,28 @@ import { randomUUID } from 'node:crypto';
 import canonicalCases from './synthetic-cases.json';
 import canonicalCounsellors from './synthetic-counsellors.json';
 import { env } from '../config/env.js';
-import type { CaseRecord, TimelineEvent } from '../types/domain.js';
+import type { CaseRecord, Counsellor, TimelineEvent } from '../types/domain.js';
 
-export interface Store { cases: CaseRecord[]; timelines: TimelineEvent[]; users: Map<string, any>; records: Map<string, any[]>; blocklist: Set<string>; }
+export interface Store { cases: CaseRecord[]; timelines: TimelineEvent[]; counsellors: Counsellor[]; users: Map<string, any>; records: Map<string, any[]>; blocklist: Set<string>; }
 
-const counsellorLookup = new Map(
-  (canonicalCounsellors as Array<{ counsellor_id: string; name: string }>).map((counsellor) => [counsellor.counsellor_id, counsellor.name])
-);
+// Real counsellor roster — loaded from the synthetic-counsellors dataset so
+// login and case-ownership checks are against actual records, not a hardcoded
+// backdoor account.
+const demoCounsellors: Counsellor[] = canonicalCounsellors.map((c) => ({
+  id: c.counsellor_id,
+  name: c.name,
+  email: c.email,
+  phone: c.phone,
+  password: c.password,
+  specialisation: c.specialisation,
+  languages: c.languages,
+  state: c.state,
+  role: 'Counsellor',
+  status: c.status,
+  experienceYears: c.experience_years,
+  casesAssigned: c.cases_assigned,
+  lastLogin: c.last_login ?? null,
+}));
 
 // This is the only memory-mode case source. It maps the authoritative synthetic
 // dataset without adding another fixture or exposing direct identity data.
@@ -38,7 +53,7 @@ const demoCases: CaseRecord[] = canonicalCases.map((source, index) => ({
   relocationStatus: source.relocation_requested ? 'Requested' : 'Not requested',
   legalAidStatus: source.legal_aid_assigned ? 'Assigned' : 'Not assigned',
   rehabilitationStatus: source.rehabilitation_status, 
-  counsellorAssigned: source.counsellor_assigned ? counsellorLookup.get(source.assigned_counsellor_id ?? '') ?? 'Assigned' : 'Not assigned',
+  counsellorAssigned: source.counsellor_assigned ? 'Assigned' : 'Not assigned',
   preferredLanguage: source.preferred_language,
   // Add missing fields
   firDate: source.fir_date,
@@ -50,7 +65,11 @@ const demoCases: CaseRecord[] = canonicalCases.map((source, index) => ({
   monitoringStarted: source.monitoring_started,
   baselineDistressScore: source.baseline_distress_score,
   currentDistressScore: source.current_distress_score,
-  riskLevel: source.risk_level
+  riskLevel: source.risk_level,
+  // Real per-case counsellor assignment — previously dropped, leaving only the
+  // boolean counsellorAssigned flag with no way to know *which* counsellor.
+  assignedCounsellorId: source.assigned_counsellor_id ?? null,
+  followupFrequency: source.followup_frequency ?? null,
 }));
 export const memoryStore: Store = {
   cases: demoCases,
@@ -58,6 +77,7 @@ export const memoryStore: Store = {
     { id: `${caseRecord.id}-registered`, caseId: caseRecord.id, date: caseRecord.registrationDate, type: 'case' as const, label: 'Synthetic case registered' },
     { id: `${caseRecord.id}-monitoring`, caseId: caseRecord.id, date: caseRecord.registrationDate, type: 'wellbeing' as const, label: 'Voluntary wellbeing check-in available' },
   ]),
+  counsellors: demoCounsellors,
   users: new Map(), records: new Map(), blocklist: new Set(),
 };
 export const supabase: SupabaseClient | null = env.SUPABASE_URL && (env.SUPABASE_SECRET_KEY || env.SUPABASE_PUBLISHABLE_KEY) ? createClient(env.SUPABASE_URL, env.SUPABASE_SECRET_KEY || env.SUPABASE_PUBLISHABLE_KEY!, { auth:{autoRefreshToken:false,persistSession:false} }) : null;

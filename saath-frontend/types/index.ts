@@ -27,6 +27,26 @@ export interface CaseRecord {
   rehabilitationStatus: string;
   counsellorAssigned: string;
   preferredLanguage: string;
+  assignedCounsellorId?: string | null;
+  followupFrequency?: string | null;
+  baselineDistressScore?: number;
+  currentDistressScore?: number;
+  riskLevel?: string;
+}
+
+export interface CounsellorProfile {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  specialisation?: string;
+  languages?: string;
+  state?: string;
+  role: "Counsellor";
+  status?: string;
+  experienceYears?: number;
+  casesAssigned?: number;
+  lastLogin?: string | null;
 }
 
 export interface CheckIn {

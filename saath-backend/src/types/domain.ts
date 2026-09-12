@@ -41,5 +41,22 @@ export interface CaseRecord {
   baselineDistressScore?: number;
   currentDistressScore?: number;
   riskLevel?: string;
+  assignedCounsellorId?: string | null;
+  followupFrequency?: string | null;
+}
+export interface Counsellor {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  password: string;
+  specialisation?: string;
+  languages?: string;
+  state?: string;
+  role: 'Counsellor';
+  status?: string;
+  experienceYears?: number;
+  casesAssigned?: number;
+  lastLogin?: string | null;
 }
 export interface TimelineEvent { id: string; caseId: string; date: string; type: 'case'|'support'|'wellbeing'; label: string; metadata?: Record<string, unknown>; }

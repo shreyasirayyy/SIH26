@@ -16,11 +16,9 @@ const PRIORITY_TONE: Record<string, "peach" | "amber" | "teal" | "sage"> = {
   P4: "sage",
 };
 
-// NOTE: the synthetic dataset only marks cases "Assigned" / "Not assigned" —
-// it doesn't yet tag which specific counsellor a case belongs to. Until the
-// backend adds a real counsellor_id field, "My cases" shows every case
-// that's already assigned to *a* counsellor (i.e. actively being worked),
-// with search + filters so it's still a genuinely useful working view.
+// The backend now filters /api/v1/counsellor/cases to only the cases whose
+// assignedCounsellorId matches the logged-in counsellor, so this genuinely
+// shows just this counsellor's own patients, with search + stage filters.
 export default function MyCasesPage() {
   const [rows, setRows] = useState<{ caseRecord: CaseRecord; latest: AiOutput | null }[]>([]);
   const [loading, setLoading] = useState(true);
