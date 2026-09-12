@@ -13,6 +13,18 @@ export type SahayakMessage = {
   text: string;
 };
 
+export interface FollowUpItem {
+  id: string;
+  caseId: string;
+  victimToken: string;
+  survivorName: string;
+  docket: string;
+  date: string;
+  notes?: string;
+  status: "SCHEDULED" | "COMPLETED";
+  createdAt: string;
+}
+
 export const defaultSahayakConversation: SahayakMessage[] = [
   { role: "assistant", text: "Hi, I am Sahayak. I am here to listen. How have things been with your case or your day?" },
 ];
@@ -74,6 +86,7 @@ interface AppState {
   language: string;
   accessibility: AccessibilitySettings;
   sahayakConversation: SahayakMessage[];
+  followUps: FollowUpItem[];
 
   setSurvivorSession: (opts: {
     victimToken: string;
@@ -90,6 +103,8 @@ interface AppState {
   resetAccessibility: () => void;
   appendSahayakConversation: (messages: SahayakMessage[]) => void;
   resetSahayakConversation: () => void;
+  addFollowUp: (item: FollowUpItem) => void;
+  markFollowUpComplete: (id: string) => void;
   logout: () => void;
 }
 
@@ -108,6 +123,7 @@ export const useAppStore = create<AppState>()(
       language: "English",
       accessibility: defaultAccessibilitySettings,
       sahayakConversation: defaultSahayakConversation,
+      followUps: [],
 
       setSurvivorSession: ({ victimToken, docket, survivorName, accessToken, caseRecord }) =>
         set({
@@ -151,6 +167,11 @@ export const useAppStore = create<AppState>()(
           sahayakConversation: [...state.sahayakConversation, ...messages],
         })),
       resetSahayakConversation: () => set({ sahayakConversation: defaultSahayakConversation }),
+      addFollowUp: (item) => set((state) => ({ followUps: [item, ...state.followUps] })),
+      markFollowUpComplete: (id) =>
+        set((state) => ({
+          followUps: state.followUps.map((f) => (f.id === id ? { ...f, status: "COMPLETED" } : f)),
+        })),
       logout: () =>
         set({
           role: null,
