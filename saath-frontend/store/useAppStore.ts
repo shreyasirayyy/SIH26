@@ -2,7 +2,8 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { CaseRecord, CounsellorProfile, Role } from "@/types";
+import { CaseRecord, CounsellorProfile, NotificationItem, Role } from "@/types";
+import { notificationService } from "@/services/notifications";
 
 export type MonitoringState = "active" | "paused" | "stopped";
 export type AccessibilityTextSize = "small" | "default" | "large" | "extra-large";
@@ -164,8 +165,15 @@ interface AppState {
   setActiveTaaraSession: (ownerKey: string, sessionId: string) => void;
   appendTaaraMessage: (ownerKey: string, sessionId: string, message: TaaraMessage) => void;
   deleteTaaraSession: (ownerKey: string, sessionId: string) => void;
+  notifications: NotificationItem[];
+  unreadNotificationCount: number;
+  setNotifications: (notifications: NotificationItem[]) => void;
+  fetchNotifications: () => Promise<NotificationItem[]>;
+  markNotificationRead: (id: string) => Promise<void>;
+  markAllNotificationsRead: () => Promise<void>;
   logout: () => void;
 }
+
 
 export const useAppStore = create<AppState>()(
   persist(
@@ -187,13 +195,62 @@ export const useAppStore = create<AppState>()(
       taaraConversations: {},
       activeTaaraSessionId: {},
       voiceCheckIns: [],
+      notifications: [],
+      unreadNotificationCount: 0,
+
+      setNotifications: (notifications) =>
+        set({
+          notifications,
+          unreadNotificationCount: notifications.filter((n) => !n.read).length,
+        }),
+
+      fetchNotifications: async () => {
+        try {
+          const items = await notificationService.getNotifications();
+          set({
+            notifications: items,
+            unreadNotificationCount: items.filter((n) => !n.read).length,
+          });
+          return items;
+        } catch {
+          return get().notifications;
+        }
+      },
+
+      markNotificationRead: async (id: string) => {
+        const prev = get().notifications;
+        const updated = prev.map((n) => (n.id === id ? { ...n, read: true } : n));
+        set({
+          notifications: updated,
+          unreadNotificationCount: updated.filter((n) => !n.read).length,
+        });
+        try {
+          await notificationService.markRead(id);
+        } catch {
+          // Keep optimistic update
+        }
+      },
+
+      markAllNotificationsRead: async () => {
+        const prev = get().notifications;
+        const updated = prev.map((n) => ({ ...n, read: true }));
+        set({
+          notifications: updated,
+          unreadNotificationCount: 0,
+        });
+        try {
+          await notificationService.markAllRead();
+        } catch {
+          // Keep optimistic update
+        }
+      },
 
       addVoiceCheckIn: (checkIn) =>
         set((state) => ({
           voiceCheckIns: [checkIn, ...state.voiceCheckIns.filter((v) => v.id !== checkIn.id)],
         })),
 
-      setSurvivorSession: ({ victimToken, docket, survivorName, accessToken, caseRecord }) =>
+      setSurvivorSession: ({ victimToken, docket, survivorName, accessToken, caseRecord }) => {
         set({
           role: "survivor",
           victimToken,
@@ -201,7 +258,10 @@ export const useAppStore = create<AppState>()(
           survivorName,
           accessToken: accessToken ?? get().accessToken,
           currentCase: caseRecord ?? get().currentCase,
-        }),
+        });
+        void get().fetchNotifications();
+      },
+
       setStaffRole: (role) => set({ role }),
       setCounsellorProfile: (counsellorProfile) => set({ counsellorProfile }),
       setConsent: (consentGiven, voiceConsent) => set({ consentGiven, voiceConsent }),
@@ -313,6 +373,8 @@ export const useAppStore = create<AppState>()(
           monitoring: "active",
           accessibility: defaultAccessibilitySettings,
           sahayakConversation: defaultSahayakConversation,
+          notifications: [],
+          unreadNotificationCount: 0,
         }),
     }),
     {
