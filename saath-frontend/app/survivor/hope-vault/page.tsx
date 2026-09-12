@@ -15,12 +15,48 @@ export default function HopeVaultPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const STORAGE_KEY = "saath_hope_vault_items";
 
   useEffect(() => {
-    hopeVaultService.getItems().then((data: any) => {
-      setItems(data || []);
-      setLoading(false);
-    });
+    // 1. Immediately hydrate from localStorage so it never gets stuck on "Loading..."
+    if (typeof window !== "undefined") {
+      try {
+        const cached = window.localStorage.getItem(STORAGE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setItems(parsed);
+            setLoading(false);
+          }
+        }
+      } catch {
+        // ignore parse error
+      }
+    }
+
+    // 2. Fetch from backend with timeout/catch so loading always terminates
+    let cancelled = false;
+    hopeVaultService
+      .getItems()
+      .then((data: any) => {
+        if (cancelled) return;
+        if (Array.isArray(data)) {
+          setItems(data);
+          if (typeof window !== "undefined") {
+            window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+          }
+        }
+      })
+      .catch((e) => {
+        console.warn("Hope vault fetch failed, using local vault:", e);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function handleSave() {
@@ -32,20 +68,35 @@ export default function HopeVaultPage() {
     setError("");
     try {
       const newItem = await hopeVaultService.createItem({ type: modal.type, title, content });
-      setItems([...items, newItem]);
+      const next = [...items, newItem];
+      setItems(next);
+      if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       setModal({ type: "", isOpen: false });
       setTitle("");
       setContent("");
     } catch (e) {
-      setError("Failed to save. Please try again.");
+      // Fallback: save locally so survivor's vault still works
+      const fallbackItem = { id: crypto.randomUUID(), type: modal.type, title, content, created_at: new Date().toISOString() };
+      const next = [...items, fallbackItem];
+      setItems(next);
+      if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      setModal({ type: "", isOpen: false });
+      setTitle("");
+      setContent("");
     } finally {
       setSubmitting(false);
     }
   }
 
   async function deleteItem(id: string) {
-    await hopeVaultService.deleteItem(id);
-    setItems(items.filter((i) => i.id !== id));
+    try {
+      await hopeVaultService.deleteItem(id);
+    } catch {
+      // ignore network failure, remove locally
+    }
+    const next = items.filter((i) => i.id !== id);
+    setItems(next);
+    if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
   }
 
   async function addItem(type: string, file?: File) {
@@ -53,14 +104,12 @@ export default function HopeVaultPage() {
     setError("");
     try {
       let newItem;
-      if (type === 'photo' && file) {
-        newItem = await hopeVaultService.uploadPhoto(file, 'Photo');
-      } else {
-        // This part is now handled by the modal for memory/message/achievement
-        // But for consistency, we keep the logic here if needed or just use handleSave
-        return;
+      if (type === "photo" && file) {
+        newItem = await hopeVaultService.uploadPhoto(file, "Photo");
+        const next = [...items, newItem];
+        setItems(next);
+        if (typeof window !== "undefined") window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
       }
-      setItems([...items, newItem]);
     } catch (e) {
       setError("Failed to save. Please try again.");
     } finally {
@@ -107,20 +156,34 @@ export default function HopeVaultPage() {
       )}
 
       <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {loading ? <p>Loading...</p> : items.length === 0 ? (
+        {loading ? (
+          <>
+            {[1, 2, 3].map((n) => (
+              <div key={n} className="surface h-36 animate-pulse rounded-2xl p-6 bg-stone-100" />
+            ))}
+          </>
+        ) : items.length === 0 ? (
           <div className="col-span-full rounded-[26px] border border-dashed border-[#ddbbaa] bg-[#fffaf5] p-12 text-center">
             <h2 className="font-display text-2xl text-[#513b31]">The little things matter.</h2>
-            <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-[#856f64]">Your Hope Vault is a gentle place for memories, messages, and moments.</p>
+            <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-[#856f64]">
+              Your Hope Vault is a gentle place for memories, messages, and moments. Add your first memory above.
+            </p>
           </div>
         ) : (
           items.map((item) => (
-            <div key={item.id} className="surface rounded-2xl p-6 flex justify-between items-start">
+            <div key={item.id} className="surface rounded-2xl p-6 flex justify-between items-start transition-all hover:shadow-md">
               <div>
                 <h3 className="font-bold text-[#4a352d]">{item.title}</h3>
                 <p className="text-sm text-[#7a5c4e] mt-1">{item.content}</p>
-                {item.image_url && <img src={item.image_url} alt={item.title} className="mt-2 max-h-32 rounded-lg" />}
+                {item.image_url && <img src={item.image_url} alt={item.title} className="mt-2 max-h-32 rounded-lg object-cover" />}
               </div>
-              <button onClick={() => deleteItem(item.id)} className="text-[#c77d5c]"><Trash2 size={18} /></button>
+              <button
+                onClick={() => deleteItem(item.id)}
+                className="rounded-lg p-1.5 text-[#c77d5c] hover:bg-[#fff0e5] transition-colors"
+                title="Remove item"
+              >
+                <Trash2 size={18} />
+              </button>
             </div>
           ))
         )}
