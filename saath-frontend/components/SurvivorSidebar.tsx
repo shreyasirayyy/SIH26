@@ -57,21 +57,14 @@ export function SurvivorSidebar() {
       </nav>
 
       <div className="mt-auto space-y-1">
-        <Link href="/survivor/case" className={`${ITEM_BASE} ${isActive("/survivor/case") ? ITEM_ACTIVE : ITEM_INACTIVE}`}>
-          <UserRound size={18} strokeWidth={isActive("/survivor/case") ? 2.3 : 1.8} />
+        <Link href="/survivor/profile" className={`${ITEM_BASE} ${isActive("/survivor/profile") ? ITEM_ACTIVE : ITEM_INACTIVE}`}>
+          <UserRound size={18} strokeWidth={isActive("/survivor/profile") ? 2.3 : 1.8} />
           <span>{name}</span>
         </Link>
         <Link href="/survivor/privacy" className={`${ITEM_BASE} ${isActive("/survivor/privacy") ? ITEM_ACTIVE : ITEM_INACTIVE}`}>
           <Settings size={18} strokeWidth={isActive("/survivor/privacy") ? 2.3 : 1.8} />
           <span>{hindi ? "गोपनीयता और नियंत्रण" : "Privacy & control"}</span>
         </Link>
-        <button
-          onClick={() => { logout(); router.push("/welcome"); }}
-          className={`w-full ${ITEM_BASE} ${ITEM_INACTIVE}`}
-        >
-          <LogOut size={18} strokeWidth={1.8} />
-          <span>{hindi ? "साइन आउट" : "Sign out"}</span>
-        </button>
       </div>
     </aside>
   );
