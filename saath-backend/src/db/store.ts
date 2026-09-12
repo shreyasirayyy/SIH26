@@ -1,10 +1,15 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { randomUUID } from 'node:crypto';
 import canonicalCases from './synthetic-cases.json';
+import canonicalCounsellors from './synthetic-counsellors.json';
 import { env } from '../config/env.js';
 import type { CaseRecord, TimelineEvent } from '../types/domain.js';
 
 export interface Store { cases: CaseRecord[]; timelines: TimelineEvent[]; users: Map<string, any>; records: Map<string, any[]>; blocklist: Set<string>; }
+
+const counsellorLookup = new Map(
+  (canonicalCounsellors as Array<{ counsellor_id: string; name: string }>).map((counsellor) => [counsellor.counsellor_id, counsellor.name])
+);
 
 // This is the only memory-mode case source. It maps the authoritative synthetic
 // dataset without adding another fixture or exposing direct identity data.
@@ -33,7 +38,7 @@ const demoCases: CaseRecord[] = canonicalCases.map((source, index) => ({
   relocationStatus: source.relocation_requested ? 'Requested' : 'Not requested',
   legalAidStatus: source.legal_aid_assigned ? 'Assigned' : 'Not assigned',
   rehabilitationStatus: source.rehabilitation_status, 
-  counsellorAssigned: source.counsellor_assigned ? 'Assigned' : 'Not assigned',
+  counsellorAssigned: source.counsellor_assigned ? counsellorLookup.get(source.assigned_counsellor_id ?? '') ?? 'Assigned' : 'Not assigned',
   preferredLanguage: source.preferred_language,
   // Add missing fields
   firDate: source.fir_date,

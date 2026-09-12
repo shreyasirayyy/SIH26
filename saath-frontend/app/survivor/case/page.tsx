@@ -106,7 +106,12 @@ export default function MyCasePage() {
         <Row label="Protection" value={caseRecord.protectionStatus || "Not requested"} />
         <Row label="Compensation" value={caseRecord.compensationStatus || "Not assessed"} />
         <Row label="Legal aid" value={caseRecord.legalAidStatus || "Not connected"} />
-        <Row label="Support" value={caseRecord.counsellorAssigned === "assigned" ? "Counsellor assigned" : "Not yet assigned"} />
+        <Row
+          label="Support"
+          value={caseRecord.counsellorAssigned && caseRecord.counsellorAssigned !== "Not assigned"
+            ? `Counsellor assigned: ${caseRecord.counsellorAssigned}`
+            : "Not yet assigned"}
+        />
       </Card>
 
       {timeline.length > 0 && (

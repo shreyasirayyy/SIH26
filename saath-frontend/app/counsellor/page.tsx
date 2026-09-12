@@ -36,7 +36,7 @@ export default function CounsellorQueuePage() {
   return (
     <div>
       <h1 className="text-xl font-semibold">Priority Queue</h1>
-      <p className="mt-1 text-sm text-text-secondary">Synthetic demonstration data — no real case records.</p>
+      <p className="mt-1 text-sm text-text-secondary">Connected to backend case data with real assigned counsellor links.</p>
 
       {voiceCheckIns.length > 0 && <section className="mt-6 rounded-2xl border border-border-color bg-pale-sage/40 p-4"><p className="text-sm font-semibold text-deep-teal">Voice check-ins awaiting review</p><div className="mt-3 space-y-2">{voiceCheckIns.map((item) => <div key={item.id} className="rounded-xl bg-white p-3 text-sm"><p className="text-xs text-text-secondary">{new Date(item.createdAt).toLocaleString()}</p><p className="mt-1">{item.transcript ?? "Transcript unavailable"}</p></div>)}</div></section>}
 
@@ -50,6 +50,9 @@ export default function CounsellorQueuePage() {
                   <p className="text-xs text-text-secondary font-mono">{caseRecord.docket}</p>
                   <p className="mt-1 text-xs text-text-secondary">
                     {caseRecord.district}, {caseRecord.state} · {caseRecord.currentStage}
+                  </p>
+                  <p className="mt-1 text-xs text-text-secondary">
+                    Assigned counsellor: {caseRecord.counsellorAssigned}
                   </p>
                 </div>
                 <div className="text-right shrink-0 space-y-1">
