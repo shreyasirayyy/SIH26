@@ -179,7 +179,7 @@ export const aiService = {
     return apiRequest("/api/v1/safe-circle");
   },
 
-  async createSafeCircleItem(payload: { name: string; phone: string; consentToContact: boolean }) {
+  async createSafeCircleItem(payload: { name: string; relation: string; email: string; consentToContact: boolean }) {
     return apiRequest("/api/v1/safe-circle", {
       method: "POST",
       body: JSON.stringify(payload),
