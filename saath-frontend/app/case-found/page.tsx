@@ -30,6 +30,7 @@ function CaseFoundInner() {
       victimToken: caseRecord.victimToken,
       docket: caseRecord.docket,
       survivorName: caseRecord.survivorName,
+      caseRecord,
     });
     router.push("/consent");
   }
