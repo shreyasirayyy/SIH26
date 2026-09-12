@@ -6,8 +6,15 @@ export const normalizeEmail = (input: string) => {
   return trimmed;
 };
 
+export const normalizePhone = (input: string) => {
+  const trimmed = input.trim();
+  if (!trimmed) throw new AppError(400, 'INVALID_PHONE', 'Enter a valid phone number.');
+  return trimmed;
+};
+
 export interface NotificationProvider {
   sendEmail(email: string, subject: string, message: string): Promise<void>;
+  sendMessage(phone: string, message: string): Promise<void>;
 }
 
 class EmailJsProvider implements NotificationProvider {
@@ -24,6 +31,14 @@ class EmailJsProvider implements NotificationProvider {
       }),
     });
     if (!res.ok) throw new AppError(502, 'EMAIL_SEND_FAILED', 'Could not send email.');
+  }
+
+  async sendMessage(phone: string, message: string) {
+    // SMS delivery is not yet wired to a provider in this demo backend, so keep the
+    // contract explicit and fail fast if the route is invoked before a provider is added.
+    void phone;
+    void message;
+    throw new AppError(501, 'SMS_PROVIDER_UNAVAILABLE', 'SMS delivery is not configured in this backend.');
   }
 }
 

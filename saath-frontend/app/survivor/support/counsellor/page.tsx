@@ -4,9 +4,17 @@ import Link from "next/link";
 import { ArrowLeft, PhoneCall } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 
+// Local shape for the resolved counsellor object the backend now sends
+// (looked up server-side from synthetic-counsellors.json via assignedCounsellorId).
+type AssignedCounsellor = {
+  name: string;
+  specialisation?: string;
+  phone?: string;
+} | null;
+
 export default function CounsellorPage() {
   const { currentCase } = useAppStore();
-  const counsellor = currentCase?.counsellorAssigned;
+  const counsellor = (currentCase as any)?.assignedCounsellor as AssignedCounsellor;
 
   return (
     <div className="px-5 pb-10 md:px-10 xl:px-14">
@@ -17,12 +25,15 @@ export default function CounsellorPage() {
       <div className="mx-auto mt-10 max-w-2xl">
         <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e5f2ec] text-[#327d70]"><PhoneCall size={24} /></span>
         <h1 className="mt-6 font-display text-4xl text-[#172326]">Talk to a counsellor</h1>
-        
+
         <div className="surface mt-8 rounded-[28px] p-8">
-          {counsellor && counsellor !== "Not assigned" ? (
+          {counsellor ? (
             <div>
               <p className="text-sm font-bold uppercase tracking-[.18em] text-[#7e918b]">Your assigned counsellor</p>
-              <h2 className="mt-3 font-display text-3xl text-[#263c35]">{counsellor}</h2>
+              <h2 className="mt-3 font-display text-3xl text-[#263c35]">{counsellor.name}</h2>
+              {counsellor.specialisation && (
+                <p className="mt-1 text-sm text-[#7e918b]">{counsellor.specialisation}</p>
+              )}
               <p className="mt-4 text-sm text-[#6b7b75]">Your counsellor is here to support your journey. You can request a follow-up or check-in through your case manager.</p>
             </div>
           ) : (

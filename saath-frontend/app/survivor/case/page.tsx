@@ -101,11 +101,22 @@ export default function MyCasePage() {
 
       <Card className="space-y-2">
         <CardTitle>Case Details</CardTitle>
+        <Row label="Case category" value={caseRecord.caseCategory || "Not available"} />
         <Row label="Registered" value={caseRecord.registrationDate ? formatDate(caseRecord.registrationDate) : "Not available"} />
+        <Row label="Registration channel" value={caseRecord.registrationChannel || "Not available"} />
+        <Row label="Location" value={caseRecord.district && caseRecord.state ? `${caseRecord.district}, ${caseRecord.state}` : "Not available"} />
+        <Row label="Incident date" value={caseRecord.incidentDate ? formatDate(caseRecord.incidentDate) : "Not available"} />
+        <Row label="FIR" value={caseRecord.firStatus || "Not registered"} />
+        <Row label="Investigation status" value={caseRecord.investigationStatus || "Not available"} />
+        <Row label="Chargesheet" value={caseRecord.chargesheetStatus || "Not available"} />
         <Row label="Next milestone" value={caseRecord.nextHearingDate ? formatDate(caseRecord.nextHearingDate) : "No upcoming hearings"} />
+        <Row label="Hearing count" value={String(caseRecord.hearingCount ?? 0)} />
         <Row label="Protection" value={caseRecord.protectionStatus || "Not requested"} />
         <Row label="Compensation" value={caseRecord.compensationStatus || "Not assessed"} />
         <Row label="Legal aid" value={caseRecord.legalAidStatus || "Not connected"} />
+        <Row label="Rehabilitation" value={caseRecord.rehabilitationStatus || "Not started"} />
+        <Row label="Preferred language" value={caseRecord.preferredLanguage || "Not available"} />
+        <Row label="Risk level" value={caseRecord.riskLevel || "Not assessed"} />
         <Row
           label="Support"
           value={caseRecord.counsellorAssigned && caseRecord.counsellorAssigned !== "Not assigned"
