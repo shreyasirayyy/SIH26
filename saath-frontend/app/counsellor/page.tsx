@@ -24,6 +24,7 @@ function riskTone(level?: string) {
 export default function CounsellorOverviewPage() {
   const counsellorProfile = useAppStore((s) => s.counsellorProfile);
   const followUps = useAppStore((s) => s.followUps);
+  const counsellorMessages = useAppStore((s) => s.counsellorMessages);
   const [cases, setCases] = useState<CaseRecord[]>([]);
   const [voiceCheckIns, setVoiceCheckIns] = useState<
     Array<{
@@ -144,7 +145,12 @@ export default function CounsellorOverviewPage() {
             {upcomingFollowUps.map((f) => (
               <div key={f.id} className="rounded-xl bg-greenish-cream p-3 text-sm">
                 <div className="flex items-center justify-between">
-                  <p className="font-medium">{f.survivorName}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">{f.survivorName}</p>
+                    {f.requestedBy === "survivor" && (
+                      <Badge tone="peach">Survivor request</Badge>
+                    )}
+                  </div>
                   <span className="text-xs text-text-secondary">{new Date(f.date).toLocaleDateString()}</span>
                 </div>
                 <p className="text-xs text-text-secondary font-mono">{f.docket}</p>
@@ -153,6 +159,35 @@ export default function CounsellorOverviewPage() {
           </div>
         </Card>
       </div>
+
+      {counsellorMessages.length > 0 && (
+        <section className="rounded-2xl border border-deep-teal/30 bg-[#f2f8f5] p-4">
+          <div className="flex items-center justify-between">
+            <p className="flex items-center gap-2 text-sm font-semibold text-deep-teal">
+              <ClipboardList size={16} /> Incoming survivor messages ({counsellorMessages.filter((m) => !m.read).length} unread)
+            </p>
+            <Link href="/counsellor/follow-ups" className="inline-flex items-center gap-1 text-xs font-semibold text-deep-teal hover:underline">
+              Open follow-ups &amp; messages <ArrowRight size={13} />
+            </Link>
+          </div>
+          <div className="mt-3 space-y-2">
+            {counsellorMessages.slice(0, 3).map((m) => (
+              <div key={m.id} className="rounded-xl bg-white p-3.5 text-sm border border-border-color shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold">{m.survivorName}</span>
+                    <span className="font-mono text-xs text-text-secondary">{m.docket}</span>
+                    {!m.read && <Badge tone="teal">New</Badge>}
+                    {m.urgency === "urgent" && <Badge tone="peach">Urgent</Badge>}
+                  </div>
+                  <span className="text-xs text-text-secondary">{new Date(m.createdAt).toLocaleDateString()}</span>
+                </div>
+                <p className="mt-1 text-xs text-text-primary italic line-clamp-2">&ldquo;{m.message}&rdquo;</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {voiceCheckIns.length > 0 && (
         <section className="rounded-2xl border border-border-color bg-pale-sage/40 p-4">

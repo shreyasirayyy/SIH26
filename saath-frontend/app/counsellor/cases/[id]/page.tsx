@@ -9,6 +9,8 @@ import { aiService } from "@/services/ai";
 import { CaseRecord, AiOutput, CheckIn, TimelineEvent } from "@/types";
 import { EscalationEstimate } from "@/types/escalation";
 import { formatDate } from "@/lib/utils";
+import { useAppStore } from "@/store/useAppStore";
+import { CalendarClock, MessageCircle } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 
 // Lightweight client-side baseline approximation for demo purposes.
@@ -54,6 +56,9 @@ export default function CounsellorCaseDetailPage() {
   const params = useParams<{ id: string }>();
   const victimToken = params.id;
 
+  const followUps = useAppStore((s) => s.followUps);
+  const counsellorMessages = useAppStore((s) => s.counsellorMessages);
+
   const [caseRecord, setCaseRecord] = useState<CaseRecord | null>(null);
   const [aiOutputs, setAiOutputs] = useState<AiOutput[]>([]);
   const [checkIns, setCheckIns] = useState<CheckIn[]>([]);
@@ -67,6 +72,13 @@ export default function CounsellorCaseDetailPage() {
     caseService.getTimeline(victimToken).then(setTimeline);
     aiService.getEscalationEstimate(victimToken).then(setEscalation);
   }, [victimToken]);
+
+  const caseFollowUps = followUps.filter(
+    (f) => f.victimToken === victimToken || (caseRecord?.docket && f.docket === caseRecord.docket)
+  );
+  const caseMessages = counsellorMessages.filter(
+    (m) => m.victimToken === victimToken || (caseRecord?.docket && m.docket === caseRecord.docket)
+  );
 
   const latest = aiOutputs.at(-1);
   const chartData = aiOutputs.map((a) => ({ date: a.timestamp.slice(5), distress: a.distressScore, recovery: a.recoveryScore }));
@@ -191,6 +203,61 @@ export default function CounsellorCaseDetailPage() {
               <div key={i} className="flex gap-3">
                 <span className="w-20 shrink-0 text-text-secondary">{formatDate(e.date)}</span>
                 <span>{e.label}</span>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {caseMessages.length > 0 && (
+        <Card className="border-deep-teal/30 bg-[#f4f9f7]/60">
+          <CardTitle className="flex items-center gap-2">
+            <MessageCircle size={18} className="text-deep-teal" /> Messages from Survivor ({caseMessages.length})
+          </CardTitle>
+          <div className="mt-3 space-y-3">
+            {caseMessages.map((m) => (
+              <div key={m.id} className="rounded-xl border border-border-color bg-white p-3.5 text-sm shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-semibold text-text-primary">
+                      {m.subject || "Direct Message"}
+                    </span>
+                    {!m.read && <Badge tone="teal">Unread</Badge>}
+                    {m.urgency === "urgent" && <Badge tone="peach">Urgent</Badge>}
+                  </div>
+                  <span className="text-xs text-text-secondary">{formatDate(m.createdAt)}</span>
+                </div>
+                <p className="mt-2 text-xs italic text-text-primary bg-[color:var(--surface-subtle)] p-2.5 rounded-lg">
+                  &ldquo;{m.message}&rdquo;
+                </p>
+                {m.replyText && (
+                  <div className="mt-2 rounded-lg bg-[#eef7f4] p-2.5 text-xs text-[#283e37] border border-[#cfdfd8]">
+                    <span className="font-bold text-deep-teal">Replied:</span> {m.replyText}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {caseFollowUps.length > 0 && (
+        <Card>
+          <CardTitle className="flex items-center gap-2">
+            <CalendarClock size={18} className="text-deep-teal" /> Follow-ups &amp; Scheduled Sessions
+          </CardTitle>
+          <div className="mt-3 space-y-2">
+            {caseFollowUps.map((f) => (
+              <div key={f.id} className="flex items-center justify-between rounded-xl bg-greenish-cream p-3 text-sm">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium">{formatDate(f.date)}</span>
+                    {f.requestedBy === "survivor" && <Badge tone="peach">Survivor request</Badge>}
+                    <Badge tone={f.status === "COMPLETED" ? "sage" : "teal"}>{f.status}</Badge>
+                  </div>
+                  {f.notes && <p className="mt-1 text-xs text-text-secondary">{f.notes}</p>}
+                </div>
+                <span className="text-xs text-text-secondary">{f.preferredTime ?? ""}</span>
               </div>
             ))}
           </div>

@@ -24,6 +24,23 @@ export interface FollowUpItem {
   notes?: string;
   status: "SCHEDULED" | "COMPLETED";
   createdAt: string;
+  requestedBy?: "survivor" | "counsellor";
+  preferredTime?: string;
+}
+
+export interface CounsellorMessageItem {
+  id: string;
+  caseId?: string;
+  victimToken: string;
+  survivorName: string;
+  docket: string;
+  message: string;
+  subject?: string;
+  urgency?: "routine" | "soon" | "urgent";
+  createdAt: string;
+  read: boolean;
+  repliedAt?: string;
+  replyText?: string;
 }
 
 export const defaultSahayakConversation: SahayakMessage[] = [
@@ -133,6 +150,7 @@ interface AppState {
   accessibility: AccessibilitySettings;
   sahayakConversation: SahayakMessage[];
   followUps: FollowUpItem[];
+  counsellorMessages: CounsellorMessageItem[];
   // Keyed by victimToken so history stays scoped to whoever is logged in on
   // this device and survives logout/login (persisted via localStorage below).
   // Each owner now holds a list of TAARA chat sessions (history), not just
@@ -159,6 +177,9 @@ interface AppState {
   resetSahayakConversation: () => void;
   addFollowUp: (item: FollowUpItem) => void;
   markFollowUpComplete: (id: string) => void;
+  addCounsellorMessage: (msg: CounsellorMessageItem) => void;
+  markCounsellorMessageRead: (id: string) => void;
+  replyCounsellorMessage: (id: string, replyText: string) => void;
   addVoiceCheckIn: (checkIn: VoiceCheckInRecord) => void;
   ensureTaaraSession: (ownerKey: string) => string;
   startNewTaaraSession: (ownerKey: string) => string;
@@ -192,6 +213,7 @@ export const useAppStore = create<AppState>()(
       accessibility: defaultAccessibilitySettings,
       sahayakConversation: defaultSahayakConversation,
       followUps: [],
+      counsellorMessages: [],
       taaraConversations: {},
       activeTaaraSessionId: {},
       voiceCheckIns: [],
@@ -300,6 +322,20 @@ export const useAppStore = create<AppState>()(
       markFollowUpComplete: (id) =>
         set((state) => ({
           followUps: state.followUps.map((f) => (f.id === id ? { ...f, status: "COMPLETED" } : f)),
+        })),
+      addCounsellorMessage: (msg) =>
+        set((state) => ({
+          counsellorMessages: [msg, ...state.counsellorMessages],
+        })),
+      markCounsellorMessageRead: (id) =>
+        set((state) => ({
+          counsellorMessages: state.counsellorMessages.map((m) => (m.id === id ? { ...m, read: true } : m)),
+        })),
+      replyCounsellorMessage: (id, replyText) =>
+        set((state) => ({
+          counsellorMessages: state.counsellorMessages.map((m) =>
+            m.id === id ? { ...m, replyText, repliedAt: new Date().toISOString(), read: true } : m
+          ),
         })),
       ensureTaaraSession: (ownerKey) => {
         const state = get();
