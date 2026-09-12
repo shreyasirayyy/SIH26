@@ -82,8 +82,19 @@ export const aiService = {
     return apiRequest("/api/v1/check-ins/history");
   },
 
-  async submitIvrsCheckIn(language: string, responses: Record<string, string>, requestCounsellorCall = false) {
-    return apiRequest("/api/v1/check-ins/ivrs", { method: "POST", body: JSON.stringify({ language, responses, requestCounsellorCall, provider: "simulated" }) });
+   async getCounsellorVoiceCheckIns() {
+    return apiRequest
+      Array<{
+        id: string;
+        victimToken?: string;
+        survivorName?: string;
+        docket?: string;
+        createdAt: string;
+        transcript?: string;
+        channel?: string;
+        requestCounsellorCall?: boolean;
+      }>
+    >("/api/v1/counsellor/voice-checkins");
   },
 
   async getCounsellorVoiceCheckIns() {
