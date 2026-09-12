@@ -1,29 +1,28 @@
 "use client";
 import Link from "next/link";
-import { ArrowLeft, Heart, LockKeyhole, ShieldCheck, UsersRound, Send } from "lucide-react";
-import { useState } from "react";
+import { ArrowLeft, Heart, LockKeyhole, MessageCircle, ShieldCheck, UsersRound, Send } from "lucide-react";
+import { useState, useEffect } from "react";
+import { apiRequest } from "@/lib/api";
 
-type Post = { id: string; body: string; hearts: number; postedAt: string };
-
-const INITIAL_POSTS: Post[] = [
-  { id: "p1", body: "Some days are heavier than others, but I showed up for my hearing today. Small win.", hearts: 4, postedAt: "2 days ago" },
-  { id: "p2", body: "Grateful for this space. Reading everyone's posts reminds me I'm not the only one going through this.", hearts: 7, postedAt: "5 days ago" },
-  { id: "p3", body: "My counsellor helped me plan out what to say at the next hearing. Feeling a little more prepared.", hearts: 3, postedAt: "1 week ago" },
-];
-
-export default function CommunityPage() {
-  const [enabled, setEnabled] = useState(false);
-  const [posts, setPosts] = useState<Post[]>(INITIAL_POSTS);
+export default function CommunityPage() { 
+  const [enabled, setEnabled] = useState(false); 
+  const [posts, setPosts] = useState<any[]>([]);
   const [draft, setDraft] = useState("");
 
-  function createPost() {
-    if (!draft.trim()) return;
-    setPosts((prev) => [{ id: `p-${Date.now()}`, body: draft.trim(), hearts: 0, postedAt: "Just now" }, ...prev]);
-    setDraft("");
-  }
+  useEffect(() => {
+    if (enabled) {
+      apiRequest("/api/v1/community/posts").then((items: any) => setPosts(items)).catch(console.error);
+    }
+  }, [enabled]);
 
-  function likePost(id: string) {
-    setPosts((prev) => prev.map((p) => (p.id === id ? { ...p, hearts: p.hearts + 1 } : p)));
+  async function createPost() {
+    if (!draft.trim()) return;
+    const newPost = await apiRequest("/api/v1/community/posts", {
+      method: "POST",
+      body: JSON.stringify({ body: draft }),
+    });
+    setPosts([newPost, ...posts]);
+    setDraft("");
   }
 
   return (
@@ -38,7 +37,7 @@ export default function CommunityPage() {
         <p className="mt-7 text-xs font-bold uppercase tracking-[.2em] text-[#7e918b]">You Are Not Alone</p>
         <h1 className="mt-3 font-display text-5xl text-[#172326]">A moderated place to feel less alone.</h1>
         <p className="mt-4 text-lg leading-relaxed text-[#63736e]">Anonymous, supportive, and always your choice.</p>
-
+        
         <div className="surface mt-10 rounded-[28px] p-7 md:p-10">
           {!enabled ? (
             <>
@@ -60,24 +59,20 @@ export default function CommunityPage() {
                 <p className="font-bold text-[#385048]">Community is on</p>
               </div>
               <div className="mt-6 flex gap-2">
-                <input
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && createPost()}
-                  placeholder="Share something supportive..."
+                <input 
+                  value={draft} 
+                  onChange={(e) => setDraft(e.target.value)} 
+                  placeholder="Share something supportive..." 
                   className="flex-1 rounded-full border border-border-color px-4 py-2 text-sm"
                 />
                 <button onClick={createPost} className="rounded-full bg-[#0f766e] p-3 text-white"><Send size={16} /></button>
               </div>
               <div className="mt-6 space-y-3">
-                {posts.map((post) => (
+                {posts.map((post: any) => (
                   <div className="rounded-2xl bg-[#f4f6ec] p-4" key={post.id}>
                     <p className="text-sm text-[#52655b]">{post.body}</p>
-                    <div className="mt-3 flex items-center justify-between text-xs text-[#89968f]">
-                      <span>{post.postedAt}</span>
-                      <button onClick={() => likePost(post.id)} className="flex items-center gap-1 hover:text-[#a2542f]">
-                        <Heart size={13} /> {post.hearts}
-                      </button>
+                    <div className="mt-3 flex items-center gap-4 text-xs text-[#89968f]">
+                      <span className="flex items-center gap-1"><Heart size={13} /> 0</span>
                     </div>
                   </div>
                 ))}
@@ -87,5 +82,5 @@ export default function CommunityPage() {
         </div>
       </div>
     </div>
-  );
+  ); 
 }
