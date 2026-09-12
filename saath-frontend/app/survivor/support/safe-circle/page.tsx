@@ -1,122 +1,177 @@
 "use client";
-import { useState } from "react";
+
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, HeartHandshake } from "lucide-react";
+import { Card, CardTitle } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { caseService } from "@/services/case";
 import { aiService } from "@/services/ai";
+import { useAppStore } from "@/store/useAppStore";
+import { CaseRecord } from "@/types";
 
-export default function SafeCirclePage() {
-  const [name, setName] = useState("");
-  const [relation, setRelation] = useState("Sister");
-  const [email, setEmail] = useState("");
-  const [consent, setConsent] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+const RISK_TONE: Record<string, "peach" | "amber" | "teal" | "sage" | "neutral"> = {
+  CRITICAL: "peach",
+  HIGH: "amber",
+  MODERATE: "teal",
+  LOW: "sage",
+};
 
-  const canSubmit = name.trim() && relation.trim() && consent && email.trim();
+function riskTone(level?: string) {
+  return RISK_TONE[level ?? ""] ?? "neutral";
+}
 
-  async function handleSubmit() {
-    if (!canSubmit) return;
-    setLoading(true);
-    setError(null);
-    try {
-      await aiService.createSafeCircleItem({
-        name: name.trim(),
-        relation: relation.trim(),
-        email: email.trim(),
-        consentToContact: consent,
-      });
-      setSent(true);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "Couldn't save this contact. Please try again.");
-    } finally {
-      setLoading(false);
+export default function CounsellorOverviewPage() {
+  const counsellorProfile = useAppStore((s) => s.counsellorProfile);
+  const [cases, setCases] = useState<CaseRecord[]>([]);
+  const [voiceCheckIns, setVoiceCheckIns] = useState<
+    Array<{
+      id: string;
+      victimToken?: string;
+      survivorName?: string;
+      docket?: string;
+      createdAt: string;
+      transcript?: string;
+      channel?: string;
+      requestCounsellorCall?: boolean;
+    }>
+  >([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    aiService.getCounsellorVoiceCheckIns().then(setVoiceCheckIns).catch(() => setVoiceCheckIns([]));
+    caseService
+      .getMyCases()
+      .then(setCases)
+      .catch(() => setCases([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const stats = useMemo(() => {
+    const total = cases.length;
+    const byRisk = { CRITICAL: 0, HIGH: 0, MODERATE: 0, LOW: 0 } as Record<string, number>;
+    let distressSum = 0;
+    let distressCount = 0;
+    for (const c of cases) {
+      if (c.riskLevel && byRisk[c.riskLevel] !== undefined) byRisk[c.riskLevel] += 1;
+      if (typeof c.currentDistressScore === "number") {
+        distressSum += c.currentDistressScore;
+        distressCount += 1;
+      }
     }
-  }
+    const avgDistress = distressCount ? Math.round(distressSum / distressCount) : null;
+    return { total, byRisk, avgDistress };
+  }, [cases]);
+
+  const sortedCases = useMemo(() => {
+    const order: Record<string, number> = { CRITICAL: 0, HIGH: 1, MODERATE: 2, LOW: 3 };
+    return [...cases].sort((a, b) => (order[a.riskLevel ?? ""] ?? 4) - (order[b.riskLevel ?? ""] ?? 4));
+  }, [cases]);
 
   return (
-    <div className="px-5 pb-10 md:px-10 xl:px-14">
-      <Link href="/survivor/support" className="inline-flex items-center gap-2 text-sm font-semibold text-[#75857f]">
-        <ArrowLeft size={16} /> Support
-      </Link>
-      <div className="mx-auto mt-9 max-w-3xl">
-        <p className="text-xs font-bold uppercase tracking-[.2em] text-[#7e918b]">Safe Circle</p>
-        <h1 className="mt-3 font-display text-5xl text-[#172326]">Choose someone who can be there.</h1>
-        <p className="mt-4 text-lg text-[#63736e]">
-          If SAATH ever detects a real crisis signal, this person will be emailed automatically so they can be there for you.
-        </p>
+    <div className="mx-auto max-w-5xl space-y-6">
+      <div>
+        <h1 className="text-xl font-semibold">Overview</h1>
+        {counsellorProfile ? (
+          <p className="mt-1 text-sm text-text-secondary">
+            {counsellorProfile.name}
+            {counsellorProfile.specialisation ? ` · ${counsellorProfile.specialisation}` : ""}
+            {counsellorProfile.state ? ` · ${counsellorProfile.state}` : ""}
+          </p>
+        ) : (
+          <p className="mt-1 text-sm text-text-secondary">Your assigned patients, at a glance.</p>
+        )}
+      </div>
 
-        <div className="surface mt-10 rounded-[28px] p-7 md:p-10">
-          {sent ? (
-            <div className="py-10 text-center">
-              <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#dcebdd] text-[#3d8561]">
-                <Check size={28} />
-              </span>
-              <h2 className="mt-6 font-display text-3xl text-[#2b473b]">Your Safe Circle is ready.</h2>
-              <p className="mt-3 text-sm text-[#6b7b75]">You can pause, revoke, or change this person any time.</p>
-            </div>
-          ) : (
-            <>
-              <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#fff0e5] text-[#b56e4e]">
-                <HeartHandshake size={22} />
-              </span>
-              <h2 className="mt-6 font-display text-3xl text-[#263c35]">Add a trusted person</h2>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Card>
+          <CardTitle>Assigned patients</CardTitle>
+          <p className="mt-2 text-2xl font-semibold">{stats.total}</p>
+        </Card>
+        <Card>
+          <CardTitle>Critical / High risk</CardTitle>
+          <p className="mt-2 text-2xl font-semibold text-[#a2542f]">
+            {stats.byRisk.CRITICAL + stats.byRisk.HIGH}
+          </p>
+        </Card>
+        <Card>
+          <CardTitle>Moderate risk</CardTitle>
+          <p className="mt-2 text-2xl font-semibold">{stats.byRisk.MODERATE}</p>
+        </Card>
+        <Card>
+          <CardTitle>Avg. distress score</CardTitle>
+          <p className="mt-2 text-2xl font-semibold">{stats.avgDistress ?? "—"}</p>
+        </Card>
+      </div>
 
-              <div className="mt-6 grid gap-4 sm:grid-cols-2">
-                <label className="text-sm font-semibold text-[#51635b]">
-                  Name
-                  <input
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="mt-2 w-full rounded-xl border border-[#c8d3d0] bg-white px-4 py-3 font-normal outline-none focus:border-[#0f766e]"
-                    placeholder="e.g. Asha"
-                  />
-                </label>
-                <label className="text-sm font-semibold text-[#51635b]">
-                  Relationship
-                  <select
-                    value={relation}
-                    onChange={(e) => setRelation(e.target.value)}
-                    className="mt-2 w-full rounded-xl border border-[#c8d3d0] bg-white px-4 py-3 font-normal outline-none focus:border-[#0f766e]"
-                  >
-                    <option>Sister</option>
-                    <option>Friend</option>
-                    <option>Parent</option>
-                    <option>Other trusted person</option>
-                  </select>
-                </label>
-                <label className="text-sm font-semibold text-[#51635b] sm:col-span-2">
-                  Email
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="mt-2 w-full rounded-xl border border-[#c8d3d0] bg-white px-4 py-3 font-normal outline-none focus:border-[#0f766e]"
-                    placeholder="asha@example.com"
-                  />
-                </label>
-              </div>
+      {voiceCheckIns.length > 0 && (
+        <section className="rounded-2xl border border-border-color bg-pale-sage/40 p-4">
+          <p className="text-sm font-semibold text-deep-teal">Voice check-ins awaiting review</p>
+          <div className="mt-3 space-y-2">
+            {voiceCheckIns.map((item) => (
+              <Link
+                key={item.id}
+                href={item.victimToken ? `/counsellor/cases/${item.victimToken}` : "#"}
+                className="block rounded-xl bg-white p-3 text-sm hover:border-deep-teal border border-transparent transition-colors"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-semibold text-text-primary">
+                    {item.survivorName ?? "Unknown survivor"}
+                    {item.docket ? <span className="ml-2 font-mono text-xs text-text-secondary">{item.docket}</span> : null}
+                  </p>
+                  {item.requestCounsellorCall && (
+                    <span className="shrink-0 rounded-full bg-[#a2542f]/10 px-2 py-0.5 text-xs font-medium text-[#a2542f]">
+                      Call requested
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 text-xs text-text-secondary">
+                  {new Date(item.createdAt).toLocaleString()}
+                  {item.channel ? ` · ${item.channel === "ivrs" ? "Phone (IVRS)" : "Voice"}` : ""}
+                </p>
+                <p className="mt-1">{item.transcript ?? "Transcript unavailable"}</p>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+      <div>
+        <h2 className="text-sm font-semibold text-text-secondary uppercase tracking-wide">Your patients</h2>
 
-              <label className="mt-6 flex items-start gap-3 text-sm text-[#51635b]">
-                <input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} className="mt-1" />
-                <span>
-                  I understand {name.trim() || "this person"} may be emailed automatically, without asking me again each time, if SAATH detects a genuine crisis signal.
-                </span>
-              </label>
+        {loading && <p className="mt-3 text-sm text-text-secondary">Loading your patients...</p>}
 
-              {error && <p className="mt-4 text-sm font-semibold text-[#b5473f]">{error}</p>}
+        {!loading && sortedCases.length === 0 && (
+          <div className="mt-3 rounded-2xl border border-dashed border-border-color p-12 text-center text-sm text-text-secondary">
+            No patients are currently assigned to you.
+          </div>
+        )}
 
-              <div className="mt-8 flex justify-end">
-                <button
-                  onClick={handleSubmit}
-                  disabled={!canSubmit || loading}
-                  className="rounded-full bg-[#0f766e] px-6 py-3 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {loading ? "Saving..." : "Save trusted person"}
-                </button>
-              </div>
-            </>
-          )}
+        <div className="mt-3 grid gap-3">
+          {sortedCases.map((caseRecord) => (
+            <Link key={caseRecord.victimToken} href={`/counsellor/cases/${caseRecord.victimToken}`}>
+              <Card className="hover:border-deep-teal transition-colors">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <p className="font-medium">{caseRecord.survivorName}</p>
+                    <p className="text-xs text-text-secondary font-mono">{caseRecord.docket}</p>
+                    <p className="mt-1 text-xs text-text-secondary">
+                      {caseRecord.district}, {caseRecord.state} · {caseRecord.currentStage}
+                    </p>
+                    {caseRecord.followupFrequency && (
+                      <p className="mt-1 text-xs text-text-secondary">
+                        Follow-up: {caseRecord.followupFrequency.replace(/_/g, " ")}
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right shrink-0 space-y-1">
+                    {caseRecord.riskLevel && <Badge tone={riskTone(caseRecord.riskLevel)}>{caseRecord.riskLevel}</Badge>}
+                    {typeof caseRecord.currentDistressScore === "number" && (
+                      <p className="text-xs text-text-secondary">Distress: {caseRecord.currentDistressScore}</p>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            </Link>
+          ))}
         </div>
       </div>
     </div>

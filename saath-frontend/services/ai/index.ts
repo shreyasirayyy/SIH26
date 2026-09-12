@@ -68,7 +68,7 @@ export const aiService = {
       headers: token ? { Authorization: `Bearer ${token}` } : undefined,
       body: form,
     });
-        let payload: { error?: { message?: string; code?: string }; data?: { id: string; processing?: string } };
+    let payload: { error?: { message?: string; code?: string }; data?: { id: string; processing?: string } };
     try {
       payload = await response.json();
     } catch {
@@ -82,8 +82,8 @@ export const aiService = {
     return apiRequest("/api/v1/check-ins/history");
   },
 
-   async getCounsellorVoiceCheckIns() {
-    return apiRequest
+  async getCounsellorVoiceCheckIns() {
+    return apiRequest<
       Array<{
         id: string;
         victimToken?: string;
@@ -95,10 +95,6 @@ export const aiService = {
         requestCounsellorCall?: boolean;
       }>
     >("/api/v1/counsellor/voice-checkins");
-  },
-
-  async getCounsellorVoiceCheckIns() {
-    return apiRequest<Array<{ id: string; victimToken?: string; createdAt: string; transcript?: string }>>("/api/v1/counsellor/voice-checkins");
   },
 
   async sendTaaraMessage(message: string, caseId?: string): Promise<{ reply: string; safetyState: string; suggestedAction: string }> {
@@ -195,8 +191,8 @@ export const aiService = {
     return apiRequest("/api/v1/safe-circle");
   },
 
- async createSafeCircleItem(payload: { name: string; relation: string; email: string; consentToContact: boolean }) {
-  return apiRequest("/api/v1/safe-circle", {
+  async createSafeCircleItem(payload: { name: string; relation: string; email: string; consentToContact: boolean }) {
+    return apiRequest("/api/v1/safe-circle", {
       method: "POST",
       body: JSON.stringify(payload),
     });

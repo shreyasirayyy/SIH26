@@ -23,7 +23,7 @@ function riskTone(level?: string) {
 export default function CounsellorOverviewPage() {
   const counsellorProfile = useAppStore((s) => s.counsellorProfile);
   const [cases, setCases] = useState<CaseRecord[]>([]);
-    const [voiceCheckIns, setVoiceCheckIns] = useState
+  const [voiceCheckIns, setVoiceCheckIns] = useState<
     Array<{
       id: string;
       victimToken?: string;
@@ -103,7 +103,7 @@ export default function CounsellorOverviewPage() {
         </Card>
       </div>
 
-            {voiceCheckIns.length > 0 && (
+      {voiceCheckIns.length > 0 && (
         <section className="rounded-2xl border border-border-color bg-pale-sage/40 p-4">
           <p className="text-sm font-semibold text-deep-teal">Voice check-ins awaiting review</p>
           <div className="mt-3 space-y-2">

@@ -4,17 +4,9 @@ import Link from "next/link";
 import { ArrowLeft, PhoneCall } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 
-// Local shape for the resolved counsellor object the backend now sends
-// (looked up server-side from synthetic-counsellors.json via assignedCounsellorId).
-type AssignedCounsellor = {
-  name: string;
-  specialisation?: string;
-  phone?: string;
-} | null;
-
 export default function CounsellorPage() {
   const { currentCase } = useAppStore();
-  const counsellor = (currentCase as any)?.assignedCounsellor as AssignedCounsellor;
+  const counsellor = currentCase?.assignedCounsellor; // 👈 changed from counsellorAssigned
 
   return (
     <div className="px-5 pb-10 md:px-10 xl:px-14">
@@ -25,7 +17,7 @@ export default function CounsellorPage() {
       <div className="mx-auto mt-10 max-w-2xl">
         <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[#e5f2ec] text-[#327d70]"><PhoneCall size={24} /></span>
         <h1 className="mt-6 font-display text-4xl text-[#172326]">Talk to a counsellor</h1>
-
+        
         <div className="surface mt-8 rounded-[28px] p-8">
           {counsellor ? (
             <div>
