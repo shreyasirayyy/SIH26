@@ -1243,6 +1243,20 @@ app.get('/api/v1/admin/national', requireAuth, requireRoles('NATIONAL_ADMIN'), a
   return ok(res, minimize(payload, MINIMIZATION_SCHEMA.adminAggregateOutput));
 }));
 
+// ADM-04 — GET /admin/counsellors: roster of counsellors mapped to CounsellorSummary shape.
+app.get('/api/v1/admin/counsellors', requireAuth, requireRoles('DISTRICT_ADMIN', 'STATE_ADMIN', 'NATIONAL_ADMIN'), asyncRoute(async (_req: AuthedRequest, res) => {
+  const summaries = store.counsellors.map((c) => ({
+    id: c.id,
+    name: c.name,
+    email: c.email,
+    specialisation: c.specialisation,
+    state: c.state,
+    status: c.status,
+    casesAssigned: c.casesAssigned ?? store.cases.filter((x) => x.assignedCounsellorId === c.id).length,
+  }));
+  return ok(res, summaries);
+}));
+
 // Generic fallback — kept for any scope string not covered by the three dedicated
 // routes above (e.g. a future custom scope), now built from the same shared helper.
 app.get('/api/v1/admin/:scope',requireAuth,requireRoles('DISTRICT_ADMIN','STATE_ADMIN','NATIONAL_ADMIN'),asyncRoute(async(req,res)=>{
