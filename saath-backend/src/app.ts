@@ -276,7 +276,16 @@ app.get('/api/v1/alerts',requireAuth,asyncRoute(async(req:AuthedRequest,res)=>{
     const offForHours = (Date.now() - new Date(latestMonitoring.createdAt).getTime()) / 3_600_000;
     if (offForHours >= 24) recordAlert({ victimToken: user.victimToken, caseReference: user.victimToken, reason: `Monitoring has been ${latestMonitoring.state} for more than 24 hours.`, source: 'monitoring', requestedSupport: true, metadata: { state: latestMonitoring.state, offForHours: Math.round(offForHours) } });
   }
-  const filtered = req.user!.role === 'SURVIVOR' ? allAlerts.filter((a:any) => a.victimToken === req.user!.victimToken) : allAlerts;
+  let filtered = allAlerts;
+  if (req.user!.role === 'SURVIVOR') {
+    filtered = allAlerts.filter((a:any) => a.victimToken === req.user!.victimToken);
+  } else if (req.user!.role === 'COUNSELLOR') {
+    const myCases = store.cases.filter(c => c.assignedCounsellorId === req.user!.id);
+    const myTokens = new Set(myCases.map(c => c.victimToken));
+    const myDockets = new Set(myCases.map(c => c.docket));
+    const myIds = new Set(myCases.map(c => c.id));
+    filtered = allAlerts.filter((a: any) => myTokens.has(a.victimToken) || myDockets.has(a.caseReference) || myIds.has(a.caseReference) || (a.victimToken && myTokens.has(a.victimToken)));
+  }
   return ok(res, filtered);
 }));
 
@@ -663,13 +672,119 @@ app.post('/api/v1/counsellor/interventions', requireAuth, requireRoles('COUNSELL
   return ok(res, { interventionId: created.id }, 201);
 }));
 
-// CNS-04 — POST /counsellor/follow-ups: dedicated contract route.
-app.post('/api/v1/counsellor/follow-ups', requireAuth, requireRoles('COUNSELLOR'), body(z.object({ caseId: z.string().min(1), date: z.string().datetime(), notes: z.string().max(2000).optional() })), asyncRoute(async (req: AuthedRequest, res) => {
-  const caseRecord = store.cases.find((c) => c.id === req.body.caseId);
+// GET /api/v1/counsellor/follow-ups: get all follow-ups scoped to counsellor's assigned cases
+app.get('/api/v1/counsellor/follow-ups', requireAuth, requireRoles('COUNSELLOR'), asyncRoute(async (req: AuthedRequest, res) => {
+  const myCases = store.cases.filter(c => c.assignedCounsellorId === req.user!.id);
+  const myTokens = new Set(myCases.map(c => c.victimToken));
+  const myIds = new Set(myCases.map(c => c.id));
+  const caseMap = new Map(store.cases.map(c => [c.id, c]));
+  const caseByToken = new Map(store.cases.map(c => [c.victimToken, c]));
+
+  const allFollowUps = store.records.get('follow_ups') || [];
+  const scoped = allFollowUps
+    .filter((f: any) => f.createdBy === req.user!.id || myTokens.has(f.victimToken) || myIds.has(f.caseId))
+    .map((f: any) => {
+      const c = caseMap.get(f.caseId) || caseByToken.get(f.victimToken);
+      return {
+        ...f,
+        survivorName: f.survivorName ?? c?.survivorName ?? 'Assigned survivor',
+        docket: f.docket ?? c?.docket ?? 'Docket',
+        currentStage: c?.currentStage,
+        riskLevel: c?.riskLevel,
+        contactPhone: c?.registeredPhone,
+      };
+    })
+    .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+  return ok(res, scoped);
+}));
+
+// CNS-04 — POST /counsellor/follow-ups: create counsellor-initiated follow-up
+app.post('/api/v1/counsellor/follow-ups', requireAuth, requireRoles('COUNSELLOR'), body(z.object({
+  caseId: z.string().min(1),
+  date: z.string().datetime(),
+  notes: z.string().max(2000).optional(),
+  privateNotes: z.string().max(2000).optional(),
+  survivorNotes: z.string().max(2000).optional(),
+  status: z.enum(['SCHEDULED', 'PROPOSED', 'CONFIRMED']).default('PROPOSED'),
+})), asyncRoute(async (req: AuthedRequest, res) => {
+  const caseRecord = store.cases.find((c) => c.id === req.body.caseId || c.victimToken === req.body.caseId);
   if (!caseRecord) throw new AppError(404, 'CASE_NOT_FOUND', 'Case not found.');
-  const created = record('follow_ups', { id: id(), caseId: req.body.caseId, victimToken: caseRecord.victimToken, date: req.body.date, notes: req.body.notes, createdBy: req.user!.id, status: 'SCHEDULED', createdAt: new Date().toISOString() });
-  recordAudit(req.user!.id, 'followup_created', created.id, { caseId: req.body.caseId, date: req.body.date });
-  return ok(res, { followUpId: created.id }, 201);
+  const now = new Date().toISOString();
+  const created = record('follow_ups', {
+    id: id(),
+    caseId: caseRecord.id,
+    victimToken: caseRecord.victimToken,
+    survivorName: caseRecord.survivorName,
+    docket: caseRecord.docket,
+    date: req.body.date,
+    notes: req.body.notes,
+    privateNotes: req.body.privateNotes,
+    survivorNotes: req.body.survivorNotes || req.body.notes,
+    createdBy: req.user!.id,
+    status: req.body.status ?? 'PROPOSED',
+    initiatedBy: 'COUNSELLOR',
+    createdAt: now,
+    updatedAt: now,
+  });
+  recordAudit(req.user!.id, 'followup_created', created.id, { caseId: caseRecord.id, date: req.body.date, status: created.status });
+  return ok(res, { followUpId: created.id, followUp: created }, 201);
+}));
+
+// PATCH /api/v1/counsellor/follow-ups/:id: update follow-up state, notes, or schedule
+app.patch('/api/v1/counsellor/follow-ups/:id', requireAuth, requireRoles('COUNSELLOR'), body(z.object({
+  status: z.enum(['SCHEDULED', 'REQUESTED', 'PROPOSED', 'ACCEPTED', 'RESCHEDULE_REQUESTED', 'CONFIRMED', 'COMPLETED', 'CANCELLED']).optional(),
+  date: z.string().datetime().optional(),
+  notes: z.string().max(2000).optional(),
+  privateNotes: z.string().max(2000).optional(),
+  survivorNotes: z.string().max(2000).optional(),
+})), asyncRoute(async (req: AuthedRequest, res) => {
+  const allFollowUps = store.records.get('follow_ups') || [];
+  const followUp = allFollowUps.find((f: any) => f.id === req.params.id);
+  if (!followUp) throw new AppError(404, 'FOLLOW_UP_NOT_FOUND', 'Follow-up not found.');
+
+  const now = new Date().toISOString();
+  if (req.body.status) followUp.status = req.body.status;
+  if (req.body.date) followUp.date = req.body.date;
+  if (req.body.notes !== undefined) followUp.notes = req.body.notes;
+  if (req.body.privateNotes !== undefined) followUp.privateNotes = req.body.privateNotes;
+  if (req.body.survivorNotes !== undefined) followUp.survivorNotes = req.body.survivorNotes;
+  followUp.updatedAt = now;
+
+  recordAudit(req.user!.id, 'followup_updated', followUp.id, { changes: req.body });
+  return ok(res, followUp);
+}));
+
+// GET /api/v1/survivor/follow-ups: get survivor's own follow-up proposals & sessions
+app.get('/api/v1/survivor/follow-ups', requireAuth, asyncRoute(async (req: AuthedRequest, res) => {
+  const allFollowUps = store.records.get('follow_ups') || [];
+  const myFollowUps = allFollowUps.filter((f: any) => f.victimToken === req.user!.victimToken);
+  return ok(res, myFollowUps);
+}));
+
+// POST /api/v1/follow-ups/:id/survivor-action: survivor accepts or proposes reschedule
+app.post('/api/v1/follow-ups/:id/survivor-action', requireAuth, body(z.object({
+  action: z.enum(['accept', 'reschedule']),
+  proposedDate: z.string().datetime().optional(),
+  notes: z.string().max(1000).optional(),
+})), asyncRoute(async (req: AuthedRequest, res) => {
+  const allFollowUps = store.records.get('follow_ups') || [];
+  const followUp = allFollowUps.find((f: any) => f.id === req.params.id);
+  if (!followUp) throw new AppError(404, 'FOLLOW_UP_NOT_FOUND', 'Follow-up not found.');
+
+  const now = new Date().toISOString();
+  if (req.body.action === 'accept') {
+    followUp.status = 'CONFIRMED';
+    followUp.acceptedAt = now;
+  } else if (req.body.action === 'reschedule') {
+    followUp.status = 'RESCHEDULE_REQUESTED';
+    followUp.proposedDate = req.body.proposedDate;
+    followUp.rescheduledReason = req.body.notes;
+    followUp.rescheduleRequestedAt = now;
+  }
+  followUp.updatedAt = now;
+  recordAudit(req.user!.id, `followup_${req.body.action}ed`, followUp.id, { action: req.body.action, proposedDate: req.body.proposedDate });
+  return ok(res, followUp);
 }));
 
 app.post('/api/v1/counsellor/:resource',requireAuth,requireRoles('COUNSELLOR'),body(z.record(z.unknown())),asyncRoute(async(req:AuthedRequest,res)=>ok(res,record(`counsellor:${req.params.resource}`,{id:id(),actor:req.user!.id,...req.body,createdAt:new Date().toISOString()}),201)));

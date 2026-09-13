@@ -14,6 +14,16 @@ export type SahayakMessage = {
   text: string;
 };
 
+export type FollowUpStatus =
+  | "SCHEDULED"
+  | "REQUESTED"
+  | "PROPOSED"
+  | "ACCEPTED"
+  | "RESCHEDULE_REQUESTED"
+  | "CONFIRMED"
+  | "COMPLETED"
+  | "CANCELLED";
+
 export interface FollowUpItem {
   id: string;
   caseId: string;
@@ -22,8 +32,14 @@ export interface FollowUpItem {
   docket: string;
   date: string;
   notes?: string;
-  status: "SCHEDULED" | "COMPLETED";
+  privateNotes?: string;
+  survivorNotes?: string;
+  proposedDate?: string;
+  rescheduledReason?: string;
+  status: FollowUpStatus;
   createdAt: string;
+  updatedAt?: string;
+  initiatedBy?: "SURVIVOR" | "COUNSELLOR";
   requestedBy?: "survivor" | "counsellor";
   preferredTime?: string;
 }
@@ -175,7 +191,9 @@ interface AppState {
   resetAccessibility: () => void;
   appendSahayakConversation: (messages: SahayakMessage[]) => void;
   resetSahayakConversation: () => void;
+  setFollowUps: (items: FollowUpItem[]) => void;
   addFollowUp: (item: FollowUpItem) => void;
+  updateFollowUp: (id: string, patch: Partial<FollowUpItem>) => void;
   markFollowUpComplete: (id: string) => void;
   addCounsellorMessage: (msg: CounsellorMessageItem) => void;
   markCounsellorMessageRead: (id: string) => void;
@@ -318,10 +336,15 @@ export const useAppStore = create<AppState>()(
           sahayakConversation: [...state.sahayakConversation, ...messages],
         })),
       resetSahayakConversation: () => set({ sahayakConversation: defaultSahayakConversation }),
-      addFollowUp: (item) => set((state) => ({ followUps: [item, ...state.followUps] })),
+      setFollowUps: (items) => set({ followUps: items }),
+      addFollowUp: (item) => set((state) => ({ followUps: [item, ...state.followUps.filter((f) => f.id !== item.id)] })),
+      updateFollowUp: (id, patch) =>
+        set((state) => ({
+          followUps: state.followUps.map((f) => (f.id === id ? { ...f, ...patch, updatedAt: new Date().toISOString() } : f)),
+        })),
       markFollowUpComplete: (id) =>
         set((state) => ({
-          followUps: state.followUps.map((f) => (f.id === id ? { ...f, status: "COMPLETED" } : f)),
+          followUps: state.followUps.map((f) => (f.id === id ? { ...f, status: "COMPLETED", updatedAt: new Date().toISOString() } : f)),
         })),
       addCounsellorMessage: (msg) =>
         set((state) => ({

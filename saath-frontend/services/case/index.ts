@@ -84,8 +84,47 @@ export const caseService = {
     return apiRequest<CaseRecord[]>("/api/v1/counsellor/cases");
   },
 
-  async createFollowUp(payload: { caseId: string; date: string; notes?: string }): Promise<{ followUpId: string }> {
+  async createFollowUp(payload: {
+    caseId: string;
+    date: string;
+    notes?: string;
+    privateNotes?: string;
+    survivorNotes?: string;
+    status?: string;
+  }): Promise<{ followUpId: string }> {
     return apiRequest<{ followUpId: string }>("/api/v1/counsellor/follow-ups", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async getFollowUps(): Promise<any[]> {
+    return apiRequest<any[]>("/api/v1/counsellor/follow-ups");
+  },
+
+  async updateFollowUp(id: string, payload: {
+    status?: string;
+    date?: string;
+    notes?: string;
+    privateNotes?: string;
+    survivorNotes?: string;
+  }): Promise<any> {
+    return apiRequest<any>(`/api/v1/counsellor/follow-ups/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    });
+  },
+
+  async getSurvivorFollowUps(): Promise<any[]> {
+    return apiRequest<any[]>("/api/v1/survivor/follow-ups");
+  },
+
+  async survivorFollowUpAction(id: string, payload: {
+    action: "accept" | "reschedule";
+    proposedDate?: string;
+    notes?: string;
+  }): Promise<any> {
+    return apiRequest<any>(`/api/v1/follow-ups/${id}/survivor-action`, {
       method: "POST",
       body: JSON.stringify(payload),
     });
