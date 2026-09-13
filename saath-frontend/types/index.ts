@@ -83,16 +83,24 @@ export interface CounsellorProfile {
 }
 
 export interface CheckIn {
+  id?: string;
+  type?: string;
+  channel?: string;
   timestamp: string;
+  createdAt?: string;
   victimToken: string;
-  mood: number;
-  sleep: number;
-  fear: number;
-  intrusion: number;
-  avoidance: number;
-  socialConnectedness: number;
-  perceivedSafety: number;
-  textSentiment: number;
+  mood?: number;
+  sleep?: number;
+  fear?: number;
+  intrusion?: number;
+  avoidance?: number;
+  socialConnectedness?: number;
+  perceivedSafety?: number;
+  textSentiment?: number;
+  distressScore?: number;
+  recoveryScore?: number;
+  confidence?: number;
+  notes?: string;
 }
 
 export interface AiOutput {
