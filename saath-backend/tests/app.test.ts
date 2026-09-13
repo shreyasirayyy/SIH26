@@ -148,4 +148,86 @@ describe('SAATH API', () => {
       expect(reengage.body.data.status).toBe('not_needed');
     });
   });
+
+  describe('Admin Counsellors Roster (ADM-04)', () => {
+    it('returns counsellor summaries for authenticated admin and enforces RBAC', async () => {
+      // Unauthenticated
+      const unauth = await request(app).get('/api/v1/admin/counsellors');
+      expect(unauth.status).toBe(401);
+
+      // Survivor role
+      const survivorToken = await connect();
+      const forbidden = await request(app).get('/api/v1/admin/counsellors').set('Authorization', `Bearer ${survivorToken}`);
+      expect(forbidden.status).toBe(403);
+
+      // Admin role
+      const adminLogin = await request(app).post('/api/v1/auth/staff-token').send({ role: 'NATIONAL_ADMIN', staffId: 'ADM-001' });
+      const adminToken = adminLogin.body.data.accessToken;
+
+      const res = await request(app).get('/api/v1/admin/counsellors').set('Authorization', `Bearer ${adminToken}`);
+      expect(res.status).toBe(200);
+      expect(Array.isArray(res.body.data)).toBe(true);
+      expect(res.body.data.length).toBeGreaterThan(0);
+
+      const first = res.body.data[0];
+      expect(first).toHaveProperty('id');
+      expect(first).toHaveProperty('name');
+      expect(first).toHaveProperty('email');
+      expect(first).toHaveProperty('specialisation');
+      expect(first).toHaveProperty('casesAssigned');
+      expect(first.password).toBeUndefined();
+    });
+  });
+
+  describe('POST /api/v1/auth/staff-token', () => {
+    it('issues valid tokens for the frontend admin accounts (district, state, national)', async () => {
+      const accounts = [
+        { role: 'DISTRICT_ADMIN', staffId: 'district@saath' },
+        { role: 'STATE_ADMIN', staffId: 'state@saath' },
+        { role: 'NATIONAL_ADMIN', staffId: 'national@saath' },
+      ] as const;
+
+      for (const acc of accounts) {
+        const res = await request(app)
+          .post('/api/v1/auth/staff-token')
+          .send({ role: acc.role, staffId: acc.staffId });
+        expect(res.status).toBe(200);
+        expect(res.body.success).toBe(true);
+        expect(res.body.data).toHaveProperty('accessToken');
+        expect(res.body.data.tokenType).toBe('Bearer');
+        expect(res.body.data.user).toEqual({ id: acc.staffId, role: acc.role });
+      }
+    });
+
+    it('rejects invalid or unauthorized roles', async () => {
+      const invalidRoles = ['COUNSELLOR', 'SURVIVOR', 'ADMIN', 'UNKNOWN'];
+      for (const role of invalidRoles) {
+        const res = await request(app)
+          .post('/api/v1/auth/staff-token')
+          .send({ role, staffId: 'test@saath' });
+        expect(res.status).toBe(400);
+      }
+    });
+
+    it('enforces STAFF_TOKEN_DISABLED 403 when feature flag is disabled outside of test environment', async () => {
+      const { env } = await import('../src/config/env.js');
+      const originalNodeEnv = env.NODE_ENV;
+      const originalFlag = env.ALLOW_DEV_STAFF_TOKEN;
+      try {
+        (env as any).NODE_ENV = 'development';
+        (env as any).ALLOW_DEV_STAFF_TOKEN = false;
+
+        const res = await request(app)
+          .post('/api/v1/auth/staff-token')
+          .send({ role: 'NATIONAL_ADMIN', staffId: 'national@saath' });
+        expect(res.status).toBe(403);
+        expect(res.body.error.code).toBe('STAFF_TOKEN_DISABLED');
+      } finally {
+        (env as any).NODE_ENV = originalNodeEnv;
+        (env as any).ALLOW_DEV_STAFF_TOKEN = originalFlag;
+      }
+    });
+  });
 });
+
+
