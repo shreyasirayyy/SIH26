@@ -16,14 +16,23 @@ export interface CaseLike {
   riskLevel?: string;
   currentDistressScore?: number;
   baselineDistressScore?: number;
+  district?: string;
+  state?: string;
 }
 
 export interface AlertLike {
   status: string;
   severity: string;
+  priority?: string;
   createdAt: string;
   resolvedAt?: string;
   acknowledgedAt?: string;
+}
+
+export interface FollowUpLike {
+  status: string;
+  date: string;
+  createdAt?: string;
 }
 
 /** P06 — Distress statistics widget: distribution + trend direction, aggregated only. */
@@ -89,7 +98,20 @@ export function computeOperationalMetrics(alerts: AlertLike[]) {
 }
 
 /** P15 — Report generation: bundles the above into a single downloadable, aggregated-only report. */
-export function generateAdminReport(params: { cases: CaseLike[]; alerts: AlertLike[]; scope: string }) {
+export function generateAdminReport(params: { cases: CaseLike[]; alerts: AlertLike[]; followUps?: FollowUpLike[]; scope: string }) {
+  const followUps = params.followUps || [];
+  const districtCounts = params.cases.reduce((acc: Record<string, number>, c) => {
+    const district = c.district || 'Unassigned';
+    acc[district] = (acc[district] || 0) + 1;
+    return acc;
+  }, {});
+
+  const priorityCounts = params.alerts.reduce((acc: Record<string, number>, a) => {
+    const p = a.priority || (a.severity === 'urgent' ? 'P1' : a.severity === 'support_request' ? 'P2' : 'P3');
+    acc[p] = (acc[p] || 0) + 1;
+    return acc;
+  }, { P1: 0, P2: 0, P3: 0, P4: 0 });
+
   return {
     generatedAt: new Date().toISOString(),
     scope: params.scope,
@@ -102,10 +124,18 @@ export function generateAdminReport(params: { cases: CaseLike[]; alerts: AlertLi
           return acc;
         }, {})
       ).map(([stage, count]) => ({ stage, count })),
+      districtStats: Object.entries(districtCounts).map(([district, count]) => ({ district, count })),
     },
     distressStats: computeDistressStatistics(params.cases),
     recoveryStats: computeRecoveryStatistics(params.cases),
     operationalMetrics: computeOperationalMetrics(params.alerts),
+    priorityStats: priorityCounts,
+    followUpStats: {
+      total: followUps.length,
+      confirmed: followUps.filter((f) => f.status === 'CONFIRMED').length,
+      proposed: followUps.filter((f) => f.status === 'PROPOSED').length,
+      rescheduleRequested: followUps.filter((f) => f.status === 'RESCHEDULE_REQUESTED').length,
+    },
   };
 }
 

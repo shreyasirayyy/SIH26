@@ -973,7 +973,12 @@ app.get('/api/v1/admin/crisis-metrics', requireAuth, requireRoles('COUNSELLOR', 
 // P15 — Report generation: bundles case-stage, distress, recovery and operational stats
 // into a single aggregated-only downloadable report.
 app.get('/api/v1/admin/reports', requireAuth, requireRoles('DISTRICT_ADMIN', 'STATE_ADMIN', 'NATIONAL_ADMIN'), asyncRoute(async (req, res) => {
-  const report = generateAdminReport({ cases: store.cases, alerts: store.records.get('alerts:all') || [], scope: String(req.query.scope ?? 'all') });
+  const report = generateAdminReport({
+    cases: store.cases,
+    alerts: store.records.get('alerts:all') || [],
+    followUps: store.records.get('follow_ups') || [],
+    scope: String(req.query.scope ?? 'all'),
+  });
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Content-Disposition', 'attachment; filename="saath-admin-report.json"');
   return res.send(JSON.stringify(report, null, 2));
