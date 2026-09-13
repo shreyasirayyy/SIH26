@@ -14,8 +14,10 @@ import {
   Send,
   Sparkles,
   X,
+  Check,
 } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
+import { caseService } from "@/services/case";
 
 const FALLBACK_COUNSELLOR = {
   name: "Dr. Neha Sharma",
@@ -32,6 +34,7 @@ export default function CounsellorPage() {
     language,
     followUps,
     addFollowUp,
+    updateFollowUp,
     counsellorMessages,
     addCounsellorMessage,
   } = useAppStore();
@@ -58,6 +61,55 @@ export default function CounsellorPage() {
   const [followUpNotes, setFollowUpNotes] = useState("");
   const [followUpSuccess, setFollowUpSuccess] = useState(false);
   const [isSubmittingFollowUp, setIsSubmittingFollowUp] = useState(false);
+
+  // Survivor action state on counsellor-proposed follow-ups
+  const [rescheduleTargetItem, setRescheduleTargetItem] = useState<any | null>(null);
+  const [rescheduleDate, setRescheduleDate] = useState("");
+  const [rescheduleTimeSlot, setRescheduleTimeSlot] = useState("afternoon");
+  const [rescheduleReason, setRescheduleReason] = useState("");
+
+  const handleSurvivorAccept = async (itemId: string) => {
+    try {
+      await caseService.survivorFollowUpAction(itemId, { action: "accept" });
+      updateFollowUp(itemId, { status: "CONFIRMED" });
+    } catch {
+      updateFollowUp(itemId, { status: "CONFIRMED" });
+    }
+  };
+
+  const handleSurvivorRescheduleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!rescheduleTargetItem || !rescheduleDate) return;
+    const timeSlotLabel =
+      rescheduleTimeSlot === "morning"
+        ? "10:30 AM"
+        : rescheduleTimeSlot === "afternoon"
+        ? "3:00 PM"
+        : "5:30 PM";
+    const combinedDate = new Date(`${rescheduleDate}T${timeSlotLabel === "10:30 AM" ? "10:30" : timeSlotLabel === "3:00 PM" ? "15:00" : "17:30"}:00`).toISOString();
+
+    try {
+      await caseService.survivorFollowUpAction(rescheduleTargetItem.id, {
+        action: "reschedule",
+        proposedDate: combinedDate,
+        notes: rescheduleReason || `Requested ${timeSlotLabel}`,
+      });
+      updateFollowUp(rescheduleTargetItem.id, {
+        status: "RESCHEDULE_REQUESTED",
+        proposedDate: combinedDate,
+        rescheduledReason: rescheduleReason || `Requested ${timeSlotLabel}`,
+      });
+    } catch {
+      updateFollowUp(rescheduleTargetItem.id, {
+        status: "RESCHEDULE_REQUESTED",
+        proposedDate: combinedDate,
+        rescheduledReason: rescheduleReason || `Requested ${timeSlotLabel}`,
+      });
+    } finally {
+      setRescheduleTargetItem(null);
+      setRescheduleReason("");
+    }
+  };
 
   // Message form state
   const [messageSubject, setMessageSubject] = useState("");
@@ -240,52 +292,105 @@ export default function CounsellorPage() {
             {myFollowUps.length > 0 && (
               <div className="space-y-3">
                 <p className="text-xs font-bold uppercase tracking-[.14em] text-[#7e918b]">
-                  {hindi ? "फॉलो-अप सत्र" : "Follow-up requests"}
+                  {hindi ? "फॉलो-अप सत्र एवं नियुक्तियाँ" : "Follow-up Sessions & Appointments"}
                 </p>
                 <div className="grid gap-3">
-                  {myFollowUps.map((item) => (
-                    <div
-                      key={item.id}
-                      className="surface rounded-2xl p-4 border border-border-color flex items-start justify-between gap-4"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <CalendarClock size={16} className="text-deep-teal shrink-0" />
-                          <p className="text-sm font-semibold text-text-primary">
-                            {new Date(item.date).toLocaleDateString(hindi ? "hi-IN" : "en-IN", {
-                              weekday: "short",
-                              month: "short",
-                              day: "numeric",
-                            })}
-                          </p>
-                          <span
-                            className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
-                              item.status === "COMPLETED"
-                                ? "bg-[#dcfce7] text-[#15803d]"
-                                : "bg-[#e5f2ec] text-[#0f766e]"
-                            }`}
-                          >
-                            {item.status === "COMPLETED"
-                              ? hindi ? "पूर्ण हुआ" : "Completed"
-                              : hindi ? "काउंसलर समीक्षा में" : "Pending Counsellor"}
-                          </span>
+                  {myFollowUps.map((item) => {
+                    const isProposed = item.status === "PROPOSED";
+                    const isConfirmed = item.status === "CONFIRMED" || item.status === "ACCEPTED" || item.status === "SCHEDULED";
+                    const isRescheduleRequested = item.status === "RESCHEDULE_REQUESTED";
+
+                    return (
+                      <div
+                        key={item.id}
+                        className={`surface rounded-2xl p-4 border transition-all ${
+                          isProposed
+                            ? "border-deep-teal/50 bg-[#eef7f4]"
+                            : isRescheduleRequested
+                            ? "border-amber/40 bg-[#fef9ee]"
+                            : "border-border-color"
+                        }`}
+                      >
+                        <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-2">
+                              <CalendarClock size={16} className="text-deep-teal shrink-0" />
+                              <p className="text-sm font-semibold text-text-primary">
+                                {new Date(item.date).toLocaleDateString(hindi ? "hi-IN" : "en-IN", {
+                                  weekday: "short",
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                })}
+                                {" · "}
+                                {new Date(item.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                              </p>
+                              <span
+                                className={`rounded-full px-2.5 py-0.5 text-[10px] font-bold ${
+                                  item.status === "COMPLETED"
+                                    ? "bg-[#dcfce7] text-[#15803d]"
+                                    : isConfirmed
+                                    ? "bg-[#d1fae5] text-[#065f46]"
+                                    : isProposed
+                                    ? "bg-[#dbeafe] text-[#1e40af]"
+                                    : isRescheduleRequested
+                                    ? "bg-[#fef3c7] text-[#92400e]"
+                                    : "bg-[#e5f2ec] text-[#0f766e]"
+                                }`}
+                              >
+                                {item.status === "COMPLETED"
+                                  ? hindi ? "पूर्ण हुआ" : "Completed"
+                                  : isConfirmed
+                                  ? hindi ? "सत्र निश्चित" : "Confirmed Call"
+                                  : isProposed
+                                  ? hindi ? "काउंसलर द्वारा प्रस्तावित" : "Counsellor Proposed"
+                                  : isRescheduleRequested
+                                  ? hindi ? "नया समय अनुरोधित" : "Reschedule Requested"
+                                  : hindi ? "काउंसलर समीक्षा में" : "Pending Review"}
+                              </span>
+                            </div>
+
+                            {item.survivorNotes && (
+                              <p className="text-xs text-[#283e37] pt-0.5">
+                                <strong className="font-semibold">{hindi ? "एजेंडा:" : "Agenda:"}</strong> {item.survivorNotes}
+                              </p>
+                            )}
+
+                            {isRescheduleRequested && item.proposedDate && (
+                              <p className="text-xs text-[#92400e] bg-amber/10 p-2 rounded-lg mt-1 font-medium">
+                                {hindi
+                                  ? `आपने ${new Date(item.proposedDate).toLocaleDateString()} को नया समय अनुरोध किया है।`
+                                  : `You requested reschedule to ${new Date(item.proposedDate).toLocaleString([], { dateStyle: "medium", timeStyle: "short" })}.`}
+                              </p>
+                            )}
+                          </div>
+
+                          {/* Actions for survivor on PROPOSED follow-ups */}
+                          {isProposed && (
+                            <div className="flex items-center gap-2 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => handleSurvivorAccept(item.id)}
+                                className="inline-flex items-center gap-1.5 rounded-xl bg-deep-teal px-3.5 py-1.5 text-xs font-bold text-white shadow-sm hover:bg-[#0c625b] transition-all"
+                              >
+                                <Check size={13} /> {hindi ? "स्वीकार करें" : "Accept Call"}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setRescheduleTargetItem(item);
+                                  setRescheduleDate(item.date.slice(0, 10));
+                                }}
+                                className="inline-flex items-center gap-1 rounded-xl border border-border-color bg-white px-3 py-1.5 text-xs font-semibold text-text-primary hover:bg-[color:var(--surface-subtle)] transition-all"
+                              >
+                                {hindi ? "समय बदलें" : "Schedule Later"}
+                              </button>
+                            </div>
+                          )}
                         </div>
-                        {item.preferredTime && (
-                          <p className="text-xs text-text-secondary flex items-center gap-1.5 pt-0.5">
-                            <Clock size={13} /> {item.preferredTime}
-                          </p>
-                        )}
-                        {item.notes && (
-                          <p className="text-xs text-[#5c6d66] pt-1 italic line-clamp-2">
-                            {item.notes}
-                          </p>
-                        )}
                       </div>
-                      <span className="text-[11px] text-text-secondary shrink-0">
-                        {new Date(item.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -607,6 +712,106 @@ export default function CounsellorPage() {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Survivor Reschedule Modal */}
+      {rescheduleTargetItem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-border-color bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between">
+              <h3 className="font-editorial text-xl font-bold text-text-primary">
+                {hindi ? "फॉलो-अप का नया समय चुनें" : "Propose New Call Time"}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setRescheduleTargetItem(null)}
+                className="rounded-lg p-1 text-text-secondary hover:bg-[#f0f4f2]"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-text-secondary">
+              {hindi
+                ? "अपनी सुविधा अनुसार उपयुक्त तारीख और समय चुनें। आपके काउंसलर को तुरंत सूचित किया जाएगा।"
+                : "Choose a time that works better for you. Your counsellor will receive this updated request."}
+            </p>
+
+            <form onSubmit={handleSurvivorRescheduleSubmit} className="mt-5 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-text-primary mb-1">
+                  {hindi ? "पसंदीदा तारीख *" : "Preferred Date *"}
+                </label>
+                <input
+                  type="date"
+                  required
+                  min={new Date().toISOString().split("T")[0]}
+                  value={rescheduleDate}
+                  onChange={(e) => setRescheduleDate(e.target.value)}
+                  className="w-full rounded-xl border border-border-color bg-white px-3.5 py-2.5 text-sm text-text-primary outline-none focus:border-deep-teal"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-text-primary mb-1.5">
+                  {hindi ? "पसंदीदा समय स्लॉट *" : "Preferred Time Slot *"}
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: "morning", label: hindi ? "सुबह (10:30 AM)" : "Morning (10:30 AM)" },
+                    { id: "afternoon", label: hindi ? "दोपहर (3:00 PM)" : "Afternoon (3:00 PM)" },
+                    { id: "evening", label: hindi ? "शाम (5:30 PM)" : "Evening (5:30 PM)" },
+                  ].map((slot) => (
+                    <button
+                      key={slot.id}
+                      type="button"
+                      onClick={() => setRescheduleTimeSlot(slot.id)}
+                      className={`rounded-xl border p-2 text-center text-xs font-semibold transition-all ${
+                        rescheduleTimeSlot === slot.id
+                          ? "border-deep-teal bg-deep-teal/10 text-deep-teal shadow-xs"
+                          : "border-border-color bg-white text-text-secondary hover:border-deep-teal/40"
+                      }`}
+                    >
+                      {slot.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-text-primary mb-1">
+                  {hindi ? "टिप्पणी / कारण (वैकल्पिक)" : "Reason or Note (optional)"}
+                </label>
+                <textarea
+                  rows={2}
+                  placeholder={
+                    hindi
+                      ? "जैसे: इस समय मुझे अदालत की सुनवाई या काम पर जाना है..."
+                      : "e.g. I have a court hearing or work shift during the original time..."
+                  }
+                  value={rescheduleReason}
+                  onChange={(e) => setRescheduleReason(e.target.value)}
+                  className="w-full rounded-xl border border-border-color bg-white p-2.5 text-xs text-text-primary outline-none focus:border-deep-teal resize-none"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setRescheduleTargetItem(null)}
+                  className="rounded-full px-4 py-2 text-xs font-semibold text-text-secondary hover:bg-[#f0f4f2]"
+                >
+                  {hindi ? "रद्द करें" : "Cancel"}
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-full bg-deep-teal px-5 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#0c625b] transition-all"
+                >
+                  {hindi ? "नया समय भेजें" : "Submit Reschedule"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
