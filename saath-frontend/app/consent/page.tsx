@@ -62,9 +62,11 @@ export default function ConsentPage() {
               { icon: Eye, text: "You can pause or withdraw at any time from Settings" },
               { icon: CheckCheck, text: "No data is shared without your explicit permission" },
             ].map(({ icon: Icon, text }) => (
-              <div key={text} className="flex items-start gap-3">
-                <Icon size={15} className="text-[#4db3a4] mt-0.5 shrink-0" />
-                <span className="text-[13px] text-[#9cc8bb]">{text}</span>
+              <div key={text} className="flex items-start gap-3.5">
+                <span className="flex h-7 w-7 items-center justify-center rounded-xl bg-[#134e43] border border-[#2fa6a0]/40 text-[#68c5b9] shadow-sm shrink-0 mt-0.5">
+                  <Icon size={15} className="text-[#81e6d9]" />
+                </span>
+                <span className="text-[13.5px] text-[#c2e2d9] leading-snug">{text}</span>
               </div>
             ))}
           </div>
