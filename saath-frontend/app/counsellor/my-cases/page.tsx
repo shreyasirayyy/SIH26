@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/Input";
 import { caseService } from "@/services/case";
 import { aiService } from "@/services/ai";
 import { CaseRecord, AiOutput } from "@/types";
+import { formatRelativeTime } from "@/lib/utils";
 
 const PRIORITY_TONE: Record<string, "peach" | "amber" | "teal" | "sage"> = {
   P1: "peach",
@@ -114,6 +115,9 @@ export default function MyCasesPage() {
                       )}
                     </>
                   )}
+                  <p className="text-[11px] text-text-secondary">
+                    Active: <span className="font-medium text-text-primary">{formatRelativeTime(caseRecord.lastActive)}</span>
+                  </p>
                 </div>
               </div>
             </Card>

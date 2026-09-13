@@ -67,6 +67,7 @@ describe('SAATH API', () => {
         expect(response.body.data.reply).toContain('Are you in immediate danger right now?');
   });
   it('handles a valid voice upload as controlled unavailable when no ML service is configured', async () => {
+    vi.spyOn(ml, 'analyzeVoice').mockRejectedValue(new Error('Voice AI provider is not configured'));
     const token = await connect(); await grant(token, 'voice_analysis');
     const response = await request(app).post('/api/v1/check-ins/voice').set('Authorization', `Bearer ${token}`).attach('audio', Buffer.from('synthetic audio'), { filename:'checkin.wav', contentType:'audio/wav' });
     expect(response.status).toBe(503); expect(response.body.error.code).toBe('VOICE_ANALYSIS_UNAVAILABLE');
