@@ -274,6 +274,107 @@ describe('Sahayak Pipeline & Dashboard Integration', () => {
       },
     });
     expect(replyMissingField).toContain('do not have an assigned counsellor');
+  }, 30000);
+
+  it('updates lastActive dynamically on meaningful survivor activity and does NOT update on counsellor case view', async () => {
+    // 1. Log in as Counsellor Anjali Sharma (C001)
+    const counsellorLoginRes = await request(app)
+      .post('/api/v1/auth/counsellor-login')
+      .send({ email: 'anjali@saath.com', password: 'saath123' });
+    expect(counsellorLoginRes.status).toBe(200);
+    const counsellorToken = counsellorLoginRes.body.data.accessToken;
+
+    // 2. Fetch initial counsellor cases
+    const initialCasesRes = await request(app)
+      .get('/api/v1/counsellor/cases')
+      .set('Authorization', `Bearer ${counsellorToken}`);
+    expect(initialCasesRes.status).toBe(200);
+    const targetCase = initialCasesRes.body.data.find((c: any) => c.docket === docket);
+    expect(targetCase).toBeDefined();
+    const initialLastActive = targetCase.lastActive; // Initial lastActive (e.g. null or prior seeded activity)
+
+    // 3. Counsellor opens the case — verify lastActive does NOT change
+    const viewCaseRes = await request(app)
+      .get(`/api/v1/counsellor/cases/${targetCase.id}`)
+      .set('Authorization', `Bearer ${counsellorToken}`);
+    expect(viewCaseRes.status).toBe(200);
+    expect(viewCaseRes.body.data.case.lastActive).toBe(initialLastActive);
+
+    // 4. Survivor logs in and performs a real mood check-in
+    const { token: survivorToken, user: survivorUser } = await connect();
+    await request(app)
+      .post('/api/v1/consents')
+      .set('Authorization', `Bearer ${survivorToken}`)
+      .send({ consent_type: 'wellbeing_monitoring', granted: true, version: '1.0' });
+
+    vi.spyOn(ml, 'analyzeText').mockResolvedValue({
+      distressScore: 45,
+      recoveryScore: 55,
+      confidence: 0.8,
+      escalationProbability: 0.2,
+      modelName: 'mock',
+      modelVersion: '1.0',
+      pipelineVersion: '1.0',
+      signals: {},
+      contributingFactors: [],
+      crisis: false,
+      insufficientEvidence: false,
+      status: 'available',
+    });
+
+    const checkInRes = await request(app)
+      .post('/api/v1/check-ins/mood')
+      .set('Authorization', `Bearer ${survivorToken}`)
+      .send({
+        mood: 4,
+        sleep: 4,
+        perceivedSafety: 4,
+        socialConnectedness: 4,
+      });
+    expect(checkInRes.status).toBe(201);
+    const checkInCreatedAt = checkInRes.body.data.createdAt;
+    expect(checkInCreatedAt).toBeDefined();
+
+    // 5. Counsellor fetches cases again — lastActive MUST now equal the checkIn timestamp!
+    const afterCheckInCasesRes = await request(app)
+      .get('/api/v1/counsellor/cases')
+      .set('Authorization', `Bearer ${counsellorToken}`);
+    const updatedCase = afterCheckInCasesRes.body.data.find((c: any) => c.docket === docket);
+    expect(updatedCase.lastActive).toBe(checkInCreatedAt);
+    expect(updatedCase.lastActive).not.toBe(initialLastActive);
+
+    // 6. Survivor completes an intervention / Feel Better exercise
+    const startInterventionRes = await request(app)
+      .post('/api/v1/interventions')
+      .set('Authorization', `Bearer ${survivorToken}`)
+      .send({ type: 'breathe', caseId: targetCase.id });
+    expect(startInterventionRes.status).toBe(201);
+    const interventionId = startInterventionRes.body.data.id;
+
+    // Small delay to ensure timestamp progression
+    await new Promise((r) => setTimeout(r, 10));
+
+    const completeInterventionRes = await request(app)
+      .post(`/api/v1/interventions/${interventionId}/complete`)
+      .set('Authorization', `Bearer ${survivorToken}`)
+      .send({});
+    expect(completeInterventionRes.status).toBe(200);
+    const completedAt = completeInterventionRes.body.data.completedAt;
+    expect(completedAt).toBeDefined();
+
+    // 7. Counsellor fetches cases again — lastActive MUST now update to the intervention completion timestamp!
+    const afterInterventionCasesRes = await request(app)
+      .get('/api/v1/counsellor/cases')
+      .set('Authorization', `Bearer ${counsellorToken}`);
+    const updatedCaseAfterIntervention = afterInterventionCasesRes.body.data.find((c: any) => c.docket === docket);
+    expect(updatedCaseAfterIntervention.lastActive).toBe(completedAt);
+    expect(new Date(updatedCaseAfterIntervention.lastActive).getTime()).toBeGreaterThanOrEqual(new Date(checkInCreatedAt).getTime());
+
+    // 8. Counsellor reviews the case again — verify lastActive remains the survivor's activity timestamp, NOT updated to now
+    const viewCaseAgainRes = await request(app)
+      .get(`/api/v1/counsellor/cases/${targetCase.id}`)
+      .set('Authorization', `Bearer ${counsellorToken}`);
+    expect(viewCaseAgainRes.body.data.case.lastActive).toBe(completedAt);
   });
 });
 

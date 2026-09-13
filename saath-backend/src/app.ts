@@ -631,11 +631,141 @@ app.post('/api/v1/alerts/:id/:action',requireAuth,requireRoles('COUNSELLOR','DIS
     if (action === 'resolve') updateCrisisEventOutcome(crisisEntries, alert.id, { resolvedAt: now, outcome: 'human_review_completed', notes: req.body.note });
   }
   return ok(res,alert);}));
+// Computes distinct timestamps for survivor activity, counsellor reviews, and counsellor contacts.
+// LAST ACTIVE: Only meaningful survivor-initiated activity (check-ins, TAARA messages, Feel Better/interventions, follow-up responses).
+// LAST REVIEWED: When a counsellor actively reviewed the case (audit log or alert resolution/acknowledgement).
+// LAST COUNSELLOR CONTACT: When a counsellor actually contacted/scheduled a follow-up with the survivor.
+const computeCaseTimestamps = (c: any) => {
+  const token = c.victimToken;
+  const docket = c.docket;
+  const caseId = c.id;
+
+  // 1. Gather all survivor-initiated activity timestamps
+  const survivorActivityTimestamps: number[] = [];
+
+  // Check-ins (mood, text, voice, ivrs, sahayak_chat, quick_mood)
+  for (const [key, values] of store.records.entries()) {
+    if (key.startsWith('checkins:')) {
+      for (const item of values) {
+        if (item.victimToken === token || item.caseId === caseId) {
+          const t = new Date(item.createdAt || item.timestamp).getTime();
+          if (!isNaN(t)) survivorActivityTimestamps.push(t);
+        }
+      }
+    }
+    // Engagement signals (checkin_completed, intervention_completed, followup_response)
+    if (key.startsWith('engagement:')) {
+      for (const item of values) {
+        if (item.victimToken === token || item.metadata?.victimToken === token) {
+          const t = new Date(item.createdAt).getTime();
+          if (!isNaN(t)) survivorActivityTimestamps.push(t);
+        }
+      }
+    }
+    // TAARA conversations
+    if (key.startsWith('taara:conversations')) {
+      for (const item of values) {
+        if (item.victimToken === token) {
+          const t = new Date(item.createdAt || item.timestamp).getTime();
+          if (!isNaN(t)) survivorActivityTimestamps.push(t);
+        }
+      }
+    }
+    // Interventions completed/started/feedback
+    if (key.startsWith('interventions:')) {
+      for (const item of values) {
+        if (item.victimToken === token || item.caseId === caseId) {
+          const t = new Date(item.completedAt || item.startedAt || item.feedback?.submittedAt || item.createdAt).getTime();
+          if (!isNaN(t)) survivorActivityTimestamps.push(t);
+        }
+      }
+    }
+    // Hope vault uploads
+    if (key.startsWith('hope:')) {
+      for (const item of values) {
+        if (item.victim_token === token) {
+          const t = new Date(item.created_at || item.createdAt).getTime();
+          if (!isNaN(t)) survivorActivityTimestamps.push(t);
+        }
+      }
+    }
+  }
+
+  // Follow-up responses/reschedules initiated by survivor
+  const allFollowUps = store.records.get('follow_ups') || [];
+  for (const f of allFollowUps) {
+    if (f.victimToken === token || f.caseId === caseId || f.docket === docket) {
+      if (f.initiatedBy === 'SURVIVOR' || f.rescheduleRequestedAt || f.acceptedAt) {
+        const t = new Date(f.rescheduleRequestedAt || f.acceptedAt || f.createdAt).getTime();
+        if (!isNaN(t)) survivorActivityTimestamps.push(t);
+      }
+    }
+  }
+
+  // Calculate newest survivor activity
+  let lastActive: string | null = null;
+  if (survivorActivityTimestamps.length > 0) {
+    const maxTime = Math.max(...survivorActivityTimestamps);
+    lastActive = new Date(maxTime).toISOString();
+  }
+
+  // 2. Counsellor Review timestamp (from audit logs or acknowledged alerts)
+  const reviewTimestamps: number[] = [];
+  const alertAudits = store.records.get('audit:alerts') || [];
+  const allAlerts = store.records.get('alerts:all') || [];
+  for (const a of allAlerts) {
+    if (a.victimToken === token || a.caseReference === docket) {
+      if (a.acknowledgedAt) {
+        const t = new Date(a.acknowledgedAt).getTime();
+        if (!isNaN(t)) reviewTimestamps.push(t);
+      }
+      if (a.resolvedAt) {
+        const t = new Date(a.resolvedAt).getTime();
+        if (!isNaN(t)) reviewTimestamps.push(t);
+      }
+    }
+  }
+  const lastReviewedAt = reviewTimestamps.length > 0 ? new Date(Math.max(...reviewTimestamps)).toISOString() : null;
+
+  // 3. Counsellor Contact timestamp (from follow-ups scheduled or completed by counsellor)
+  const contactTimestamps: number[] = [];
+  for (const f of allFollowUps) {
+    if (f.victimToken === token || f.caseId === caseId || f.docket === docket) {
+      if (f.createdBy && f.status !== 'CANCELLED') {
+        const t = new Date(f.createdAt || f.date).getTime();
+        if (!isNaN(t)) contactTimestamps.push(t);
+      }
+    }
+  }
+  const lastCounsellorContactAt = contactTimestamps.length > 0 ? new Date(Math.max(...contactTimestamps)).toISOString() : null;
+
+  return {
+    ...c,
+    lastActive,
+    lastReviewedAt,
+    lastCounsellorContactAt,
+  };
+};
+
 // Filtered to only the cases assigned to the authenticated counsellor —
-// previously returned store.cases unfiltered (every counsellor saw every case).
-app.get('/api/v1/counsellor/cases',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>ok(res,store.cases.filter(c=>c.assignedCounsellorId===req.user!.id))));
-app.get('/api/v1/counsellor/cases/:id',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>{const c=store.cases.find(x=>x.id===req.params.id); if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); if(c.assignedCounsellorId!==req.user!.id) throw new AppError(403,'FORBIDDEN','This case is not assigned to you.'); return ok(res,{case:c,view:'summary',timeline:store.timelines.filter(x=>x.caseId===c.id)});}));
-app.get('/api/v1/counsellor/cases/:id/:view',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>{const c=store.cases.find(x=>x.id===req.params.id); if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); if(c.assignedCounsellorId!==req.user!.id) throw new AppError(403,'FORBIDDEN','This case is not assigned to you.'); return ok(res,{case:c,view:String(req.params.view),timeline:store.timelines.filter(x=>x.caseId===c.id)});}));  
+// enriched with dynamic survivor lastActive, lastReviewedAt, and lastCounsellorContactAt.
+app.get('/api/v1/counsellor/cases',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>{
+  const assigned = store.cases.filter(c=>c.assignedCounsellorId===req.user!.id);
+  const enriched = assigned.map(computeCaseTimestamps);
+  return ok(res, enriched);
+}));
+app.get('/api/v1/counsellor/cases/:id',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>{
+  const c=store.cases.find(x=>x.id===req.params.id||x.victimToken===req.params.id||x.docket===req.params.id); 
+  if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); 
+  if(c.assignedCounsellorId!==req.user!.id) throw new AppError(403,'FORBIDDEN','This case is not assigned to you.'); 
+  return ok(res,{case:computeCaseTimestamps(c),view:'summary',timeline:store.timelines.filter(x=>x.caseId===c.id)});
+}));
+app.get('/api/v1/counsellor/cases/:id/:view',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>{
+  const c=store.cases.find(x=>x.id===req.params.id||x.victimToken===req.params.id||x.docket===req.params.id); 
+  if(!c) throw new AppError(404,'CASE_NOT_FOUND','Case not found.'); 
+  if(c.assignedCounsellorId!==req.user!.id) throw new AppError(403,'FORBIDDEN','This case is not assigned to you.'); 
+  return ok(res,{case:computeCaseTimestamps(c),view:String(req.params.view),timeline:store.timelines.filter(x=>x.caseId===c.id)});
+}));  
 app.get('/api/v1/counsellor/voice-checkins',requireAuth,requireRoles('COUNSELLOR'),asyncRoute(async(req:AuthedRequest,res)=>{
   const myVictimTokens=new Set(store.cases.filter(c=>c.assignedCounsellorId===req.user!.id).map(c=>c.victimToken));
   const caseByToken=new Map(store.cases.map(c=>[c.victimToken,c]));

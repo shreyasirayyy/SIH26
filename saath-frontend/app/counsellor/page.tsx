@@ -27,7 +27,7 @@ import {
   UserCheck,
   UsersRound,
 } from "lucide-react";
-import { formatDate } from "@/lib/utils";
+import { formatDate, formatRelativeTime } from "@/lib/utils";
 
 interface VoiceCheckIn {
   id: string;
@@ -139,7 +139,7 @@ export default function CounsellorOverviewPage() {
     const now = new Date();
     now.setHours(0, 0, 0, 0);
     const upcomingFollowUpsCount = assignedFollowUps.filter((f) => {
-      if (f.status !== "SCHEDULED") return false;
+      if (f.status === "COMPLETED" || f.status === "CANCELLED") return false;
       const fDate = new Date(f.date);
       return !isNaN(fDate.getTime()) && fDate >= now;
     }).length;
@@ -201,18 +201,18 @@ export default function CounsellorOverviewPage() {
 
         const now = new Date();
         const overdueFollowUp = assignedFollowUps.find((f) => {
-          if (f.status !== "SCHEDULED") return false;
+          if (f.status === "COMPLETED" || f.status === "CANCELLED") return false;
           if (f.victimToken !== c.victimToken && f.docket !== c.docket) return false;
           const fDate = new Date(f.date);
           return !isNaN(fDate.getTime()) && fDate < now;
         });
 
-        // Determine specific operational reason
+        // Determine specific operational reason strictly backed by real signals
         let reason = "";
         let urgencyScore = 0;
 
         if (p1Alert) {
-          reason = `P1 Alert: ${p1Alert.reason || "Urgent safety flag requiring review"}`;
+          reason = `P1 Crisis Alert: ${p1Alert.reason || "Safety flag requiring immediate review"}`;
           urgencyScore = 100;
         } else if (voiceCheckIn?.requestCounsellorCall) {
           reason = "Voice check-in: Survivor requested counsellor call";
@@ -230,18 +230,18 @@ export default function CounsellorOverviewPage() {
           reason = `Follow-up overdue since ${formatDate(overdueFollowUp.date)}`;
           urgencyScore = 65;
         } else if (c.riskLevel === "CRITICAL" || c.riskLevel === "HIGH") {
-          reason = `High risk level (${c.riskLevel}) · Next hearing: ${c.nextHearingDate ? formatDate(c.nextHearingDate) : "TBD"}`;
+          reason = `High risk level (${c.riskLevel})${c.nextHearingDate ? ` · Next hearing: ${formatDate(c.nextHearingDate)}` : ""}`;
           urgencyScore = 60;
         } else if (c.currentDistressScore && c.currentDistressScore >= 70) {
           reason = `Elevated distress observation (${c.currentDistressScore}/100)`;
           urgencyScore = 50;
         } else {
-          reason = `Routine monitoring · Stage: ${c.currentStage}`;
+          reason = `Routine monitoring · Stage: ${c.currentStage || "Registered"}`;
           urgencyScore = 10;
         }
 
-        const distress = c.currentDistressScore ?? null;
-        const baseline = c.baselineDistressScore ?? null;
+        const distress = typeof c.currentDistressScore === "number" ? c.currentDistressScore : null;
+        const baseline = typeof c.baselineDistressScore === "number" ? c.baselineDistressScore : null;
         let distressTrend: "rising" | "improving" | "stable" | "insufficient" = "insufficient";
         if (distress !== null && baseline !== null) {
           if (distress - baseline >= 6) distressTrend = "rising";
@@ -249,14 +249,20 @@ export default function CounsellorOverviewPage() {
           else distressTrend = "stable";
         }
 
+        // LAST ACTIVE: genuine survivor-initiated activity timestamp from backend
+        // Fallback only to voiceCheckIn.createdAt if present, otherwise null (deliberate no activity state).
+        const survivorLastActive = c.lastActive || voiceCheckIn?.createdAt || null;
+
         return {
           caseRecord: c,
           reason,
           urgencyScore,
           distressScore: distress,
-          recoveryScore: c.predicted7dScore ? Math.max(10, 100 - c.predicted7dScore) : null,
+          recoveryScore: typeof c.predicted7dScore === "number" ? Math.max(10, 100 - c.predicted7dScore) : null,
           distressTrend,
-          lastActivity: voiceCheckIn?.createdAt || c.stageStartedAt || c.registrationDate,
+          lastActivity: survivorLastActive,
+          lastReviewedAt: c.lastReviewedAt ?? null,
+          lastCounsellorContactAt: c.lastCounsellorContactAt ?? null,
         };
       })
       .filter((item) => item.urgencyScore >= 50)
@@ -580,7 +586,9 @@ export default function CounsellorOverviewPage() {
 
                   <div className="text-right hidden sm:block">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-text-secondary">Last Active</p>
-                    <p className="text-xs text-text-secondary">{formatDate(lastActivity)}</p>
+                    <p className={`text-xs font-medium ${lastActivity ? "text-text-primary" : "text-text-secondary italic"}`}>
+                      {formatRelativeTime(lastActivity)}
+                    </p>
                   </div>
 
                   <ArrowRight size={16} className="text-text-secondary group-hover:text-deep-teal group-hover:translate-x-1 transition-all" />
