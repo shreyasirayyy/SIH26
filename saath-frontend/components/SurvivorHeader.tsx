@@ -259,9 +259,9 @@ export function SurvivorHeader() {
 
                 <SectionGroup title="Page Zoom">
                   <div className="flex flex-wrap items-center gap-2">
-                    <button type="button" aria-label="Decrease zoom" onClick={() => setAccessibility({ pageZoom: Math.max(80, accessibility.pageZoom - 10) })} className="rounded-lg border border-[#dfe8e4] bg-[#f4f6f3] px-2.5 py-1.5 text-xs font-semibold text-[#53615d] hover:bg-[#e8ece8] transition-colors">−</button>
+                    <button type="button" aria-label="Decrease zoom" onClick={() => setAccessibility({ pageZoom: Math.max(80, accessibility.pageZoom - 10) })} className="rounded-lg border border-border-color bg-[color:var(--surface-subtle)] px-2.5 py-1.5 text-xs font-semibold text-[color:var(--text-secondary)] hover:bg-[color:var(--surface-raised)] transition-colors">−</button>
                     <ChoicePill label={`${accessibility.pageZoom}%`} selected={accessibility.pageZoom === 100} onClick={() => setAccessibility({ pageZoom: 100 })} />
-                    <button type="button" aria-label="Increase zoom" onClick={() => setAccessibility({ pageZoom: Math.min(150, accessibility.pageZoom + 10) })} className="rounded-lg border border-[#dfe8e4] bg-[#f4f6f3] px-2.5 py-1.5 text-xs font-semibold text-[#53615d] hover:bg-[#e8ece8] transition-colors">+</button>
+                    <button type="button" aria-label="Increase zoom" onClick={() => setAccessibility({ pageZoom: Math.min(150, accessibility.pageZoom + 10) })} className="rounded-lg border border-border-color bg-[color:var(--surface-subtle)] px-2.5 py-1.5 text-xs font-semibold text-[color:var(--text-secondary)] hover:bg-[color:var(--surface-raised)] transition-colors">+</button>
                   </div>
                 </SectionGroup>
 
@@ -306,7 +306,7 @@ export function SurvivorHeader() {
               </div>
             </div>
 
-            <div className="border-t border-[#edf1ee] px-4 py-3">
+            <div className="border-t border-border-color px-4 py-3">
               <button type="button" onClick={() => { resetAccessibility(); setIsAccessibilityOpen(false); }} className="w-full rounded-xl border border-border-color bg-[color:var(--surface-subtle)] px-3 py-2 text-sm font-semibold text-[color:var(--text-primary)] hover:bg-[color:var(--surface-raised)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--focus-ring)] focus-visible:ring-offset-2">
                 Reset all settings
               </button>

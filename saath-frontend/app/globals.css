@@ -109,33 +109,34 @@ html[data-saath-readable-font="true"] body * {
 html[data-saath-dark-mode="true"] {
   --background: #121817;
   --sidebar-background: #0d1211;
-  --surface: #1a2221;
-  --surface-raised: #222c2a;
-  --surface-subtle: #161e1d;
+  --surface: #1f2b29;
+  --surface-raised: #263330;
+  --surface-subtle: #182220;
   --surface-overlay: rgba(0, 0, 0, 0.7);
+  --foreground: #f3f5f2;
   --text-primary: #f3f5f2;
-  --text-secondary: #c2ccc7;
-  --text-muted: #95a39d;
-  --text-disabled: #63706b;
-  --border: #2c3937;
-  --border-subtle: #222c2a;
-  --border-strong: #3f514e;
-  --deep-teal: #4db3a4;
-  --soft-teal: #68c5b9;
+  --text-secondary: #b8c8c3;
+  --text-muted: #8fa09a;
+  --text-disabled: #5c6b66;
+  --border: #2e3d3a;
+  --border-color: #2e3d3a;
+  --border-subtle: #232e2b;
+  --border-strong: #3d514d;
+  --deep-teal: #52c0b0;
+  --soft-teal: #72d1c3;
   --sage: #8ab692;
   --pale-sage: #1e332e;
   --greenish-cream: #182220;
   --warm-cream: #121817;
-  --border-color: #2c3937;
-  --white: #1a2221;
-  --warm-peach: #e29f95;
+  --white: #1f2b29;
+  --warm-peach: #e6a598;
   --amber: #e8bd66;
   --calm-blue: #7cb8d4;
   --muted-plum: #9a88be;
-  --primary-teal: #4db3a4;
+  --primary-teal: #52c0b0;
   --primary-teal-light: #72d1c3;
   --primary-teal-dark: #193832;
-  --primary-teal-hover: #5ec2b3;
+  --primary-teal-hover: #62cfc0;
   --accent-gold: #e8bd66;
   --success: #6ec79b;
   --success-bg: #163327;
@@ -145,69 +146,162 @@ html[data-saath-dark-mode="true"] {
   --error-bg: #361f1c;
   --info: #7cb8d4;
   --info-bg: #1a2e38;
-  --focus-ring: #4db3a4;
-  --hover-background: #222c2a;
-  --pressed-background: #193832;
-  --input-background: #151d1c;
-  --input-border: #2c3937;
-  --input-border-focus: #4db3a4;
-  --placeholder: #7f918b;
-  --disabled-background: #18201f;
+  --focus-ring: #52c0b0;
+  --hover-background: #253330;
+  --pressed-background: #1c3530;
+  --input-background: #172120;
+  --input-border: #2e3d3a;
+  --input-border-focus: #52c0b0;
+  --placeholder: #7a8f89;
+  --disabled-background: #182220;
   color-scheme: dark;
   background: var(--background);
 }
 
+/* ─── Page layout background ─────────────────────── */
+.saath-page-bg {
+  background: radial-gradient(circle at 90% 0%, rgba(220,235,221,.7), transparent 30%),
+    linear-gradient(135deg, #fff9f0 0%, #f7f5ed 52%, #eef6f0 100%);
+}
+html[data-saath-dark-mode="true"] .saath-page-bg {
+  background: var(--background) !important;
+}
+
+/* ─── Body & HTML ─────────────────────────────────── */
 html[data-saath-dark-mode="true"] body {
   background-color: var(--background) !important;
   color: var(--text-primary) !important;
 }
 
+/* ─── Generic surface classes ─────────────────────── */
 html[data-saath-dark-mode="true"] .surface {
   background-color: var(--surface) !important;
   border-color: var(--border) !important;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.35) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4) !important;
 }
-
 html[data-saath-dark-mode="true"] .surface-soft {
   background-color: var(--surface-subtle) !important;
   border-color: var(--border) !important;
 }
 
+/* ─── Sidebar & nav ───────────────────────────────── */
 html[data-saath-dark-mode="true"] aside {
   background-color: var(--sidebar-background) !important;
   border-color: var(--border) !important;
 }
-
 html[data-saath-dark-mode="true"] header {
+  background-color: transparent !important;
   border-color: var(--border) !important;
 }
 
+/* ─── UI Card component (bg-white) ───────────────── */
 html[data-saath-dark-mode="true"] .bg-white,
 html[data-saath-dark-mode="true"] .bg-white\/70,
 html[data-saath-dark-mode="true"] .bg-white\/80,
-html[data-saath-dark-mode="true"] .bg-white\/90 {
+html[data-saath-dark-mode="true"] .bg-white\/90,
+html[data-saath-dark-mode="true"] .bg-white\/60,
+html[data-saath-dark-mode="true"] .bg-white\/50 {
   background-color: var(--surface) !important;
 }
 
+/* ─── Cream / sage backgrounds ────────────────────── */
 html[data-saath-dark-mode="true"] .bg-greenish-cream,
-html[data-saath-dark-mode="true"] .bg-warm-cream {
-  background-color: var(--background) !important;
+html[data-saath-dark-mode="true"] .bg-warm-cream,
+html[data-saath-dark-mode="true"] .bg-pale-sage,
+html[data-saath-dark-mode="true"] .bg-pale-sage\/40,
+html[data-saath-dark-mode="true"] .bg-pale-sage\/50,
+html[data-saath-dark-mode="true"] .bg-pale-sage\/60 {
+  background-color: var(--surface-subtle) !important;
 }
 
+/* ─── Inline hex backgrounds commonly used in SAATH ─ */
+/* Quick check-in card area */
+html[data-saath-dark-mode="true"] [class*="bg-[#f4f6ec]"],
+html[data-saath-dark-mode="true"] [class*="bg-[#f8faf4]"],
+html[data-saath-dark-mode="true"] [class*="bg-[#eef6f0]"],
+html[data-saath-dark-mode="true"] [class*="bg-[#f7f5ed]"],
+html[data-saath-dark-mode="true"] [class*="bg-[#fff9f0]"],
+html[data-saath-dark-mode="true"] [class*="bg-[#f0f6f3]"],
+html[data-saath-dark-mode="true"] [class*="bg-[#fbfdfc]"],
+html[data-saath-dark-mode="true"] [class*="bg-[#f8fbf9]"],
+html[data-saath-dark-mode="true"] [class*="bg-[#f2f8f5]"],
+html[data-saath-dark-mode="true"] [class*="bg-[#f4f9f7]"],
+html[data-saath-dark-mode="true"] [class*="bg-[#eef7f4]"] {
+  background-color: var(--surface-subtle) !important;
+}
+
+/* Light sage-tinted backgrounds (surface cards) */
+html[data-saath-dark-mode="true"] [class*="bg-[#e5f2ec]"],
+html[data-saath-dark-mode="true"] [class*="bg-[#dff0ea]"],
+html[data-saath-dark-mode="true"] [class*="bg-[#e0eee9]"],
+html[data-saath-dark-mode="true"] [class*="bg-[#dcfce7]"] {
+  background-color: #1a332e !important;
+}
+
+/* ─── Borders ─────────────────────────────────────── */
 html[data-saath-dark-mode="true"] .border-border-color,
 html[data-saath-dark-mode="true"] .border-border-color\/70,
-html[data-saath-dark-mode="true"] .border-border-color\/65 {
+html[data-saath-dark-mode="true"] .border-border-color\/65,
+html[data-saath-dark-mode="true"] .border-border-color\/60,
+html[data-saath-dark-mode="true"] [class*="border-border-color"] {
+  border-color: var(--border) !important;
+}
+html[data-saath-dark-mode="true"] [class*="divide-border"] > * {
   border-color: var(--border) !important;
 }
 
-html[data-saath-dark-mode="true"] .text-text-primary {
+/* ─── Text ────────────────────────────────────────── */
+html[data-saath-dark-mode="true"] .text-text-primary,
+html[data-saath-dark-mode="true"] [class*="text-[#172326]"],
+html[data-saath-dark-mode="true"] [class*="text-[#263c35]"],
+html[data-saath-dark-mode="true"] [class*="text-[#283e37]"] {
   color: var(--text-primary) !important;
 }
-
-html[data-saath-dark-mode="true"] .text-text-secondary {
+html[data-saath-dark-mode="true"] .text-text-secondary,
+html[data-saath-dark-mode="true"] [class*="text-[#46565a]"],
+html[data-saath-dark-mode="true"] [class*="text-[#6b7b75]"],
+html[data-saath-dark-mode="true"] [class*="text-[#5c6d66]"],
+html[data-saath-dark-mode="true"] [class*="text-[#7e918b]"],
+html[data-saath-dark-mode="true"] [class*="text-[#75857f]"],
+html[data-saath-dark-mode="true"] [class*="text-[#7e8d89]"] {
   color: var(--text-secondary) !important;
 }
 
+/* ─── Accessibility panel itself ─────────────────── */
+html[data-saath-dark-mode="true"] [role="dialog"] {
+  background-color: var(--surface) !important;
+  border-color: var(--border) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ─── Form inputs ─────────────────────────────────── */
+html[data-saath-dark-mode="true"] input,
+html[data-saath-dark-mode="true"] textarea,
+html[data-saath-dark-mode="true"] select {
+  background-color: var(--input-background) !important;
+  border-color: var(--input-border) !important;
+  color: var(--text-primary) !important;
+}
+html[data-saath-dark-mode="true"] input::placeholder,
+html[data-saath-dark-mode="true"] textarea::placeholder {
+  color: var(--placeholder) !important;
+}
+
+/* ─── Modals / Dropdowns ─────────────────────────── */
+html[data-saath-dark-mode="true"] [role="menu"] {
+  background-color: var(--surface) !important;
+  border-color: var(--border) !important;
+}
+html[data-saath-dark-mode="true"] [role="menuitem"]:hover {
+  background-color: var(--hover-background) !important;
+}
+
+/* ─── SurvivorNav (mobile bottom nav) ────────────── */
+html[data-saath-dark-mode="true"] nav {
+  border-color: var(--border) !important;
+}
+
+/* ─── Selection ───────────────────────────────────── */
 html[data-saath-dark-mode="true"] ::selection {
   background: #244b44;
   color: #c8ece4;
