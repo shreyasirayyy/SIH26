@@ -150,7 +150,11 @@ export interface AdminReport {
   generatedAt: string;
   scope: string;
   privacyBoundary: string;
-  caseStats: { caseCount: number; stageStats: { stage: string; count: number }[] };
+  caseStats: {
+    caseCount: number;
+    stageStats: { stage: string; count: number }[];
+    districtStats?: { district: string; count: number }[];
+  };
   distressStats: {
     caseCount: number;
     distressDistribution: Record<string, number>;
@@ -167,6 +171,13 @@ export interface AdminReport {
     avgAcknowledgeTimeMs: number | null;
     avgResolutionTimeMs: number | null;
     urgentAlertCount: number;
+  };
+  priorityStats?: Record<string, number>;
+  followUpStats?: {
+    total: number;
+    confirmed: number;
+    proposed: number;
+    rescheduleRequested: number;
   };
 }
 
