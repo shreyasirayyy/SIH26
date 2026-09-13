@@ -1,27 +1,283 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { ArrowRight, Check, CircleAlert, ShieldAlert } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { ArrowRight, Check, CheckCircle2, CircleAlert, ShieldAlert } from "lucide-react";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
 import { aiService } from "@/services/ai";
+import { caseService } from "@/services/case";
+import { CaseRecord } from "@/types";
+import { formatDate } from "@/lib/utils";
 
-const alerts = [
-  { id: "A-204", level: "P2", title: "Meaningful change detected", caseName: "Sunita", docket: "NHAA-RJ-2026-004821", reason: "Sleep disturbance increased; engagement decreased", confidence: "Moderate", lastContact: "3 days ago" },
-  { id: "A-198", level: "P3", title: "Follow-up due", caseName: "Priya", docket: "NHAA-MH-2026-011932", reason: "Scheduled check-in has not been completed", confidence: "Low", lastContact: "6 days ago" },
-  { id: "A-191", level: "P1", title: "Recent safety concern", caseName: "Anjali", docket: "NHAA-UP-2026-007765", reason: "Safety response changed across two check-ins", confidence: "Moderate", lastContact: "Yesterday" },
-];
+interface AlertItem {
+  id: string;
+  priority?: string;
+  level?: string;
+  severity?: string;
+  status: string;
+  reason: string;
+  source?: string;
+  victimToken?: string;
+  caseReference?: string;
+  confidence?: number;
+  createdAt: string;
+  updatedAt?: string;
+  resolvedAt?: string;
+}
 
 export default function CounsellorAlertsPage() {
-  const [tab, setTab] = useState("New");
-  const [reviewed, setReviewed] = useState<string[]>([]);
+  const [tab, setTab] = useState<"New" | "Reviewed" | "Critical">("New");
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [cases, setCases] = useState<CaseRecord[]>([]);
   const [assessments, setAssessments] = useState<Awaited<ReturnType<typeof aiService.getSahayakAssessments>>>([]);
-  useEffect(() => { void aiService.getSahayakAssessments().then(setAssessments).catch(() => setAssessments([])); }, []);
-  const visible = alerts.filter((alert) => tab === "New" ? !reviewed.includes(alert.id) : tab === "Reviewed" ? reviewed.includes(alert.id) : alert.level === "P1");
+  const [loading, setLoading] = useState(true);
 
-  return <div className="mx-auto max-w-7xl space-y-8">
-    <div><p className="text-xs font-bold uppercase tracking-[.18em] text-deep-teal">Counsellor workspace</p><h1 className="mt-2 text-3xl font-semibold">Alerts</h1><p className="mt-2 text-sm text-text-secondary">AI-assisted early-support signals for human review. An alert is not a diagnosis.</p></div>
-    {assessments.length > 0 && <section className="surface rounded-2xl border border-[#c9ded7] p-5"><p className="text-xs font-bold uppercase tracking-[.18em] text-deep-teal">Sahayak assessments</p><div className="mt-4 grid gap-3">{assessments.slice(-5).reverse().map((assessment) => <article key={assessment.id} className="rounded-xl bg-greenish-cream p-4"><div className="flex flex-wrap items-center justify-between gap-2"><p className="font-semibold">Case {assessment.caseId ?? assessment.victimToken ?? "unassigned"}</p><span className="rounded-full bg-warm-peach/20 px-3 py-1 text-xs font-bold">{assessment.prediction.risk_level} · {assessment.prediction.escalation_probability}%</span></div><p className="mt-2 text-sm text-text-secondary">{assessment.prediction.recommended_followup} · Confidence {(assessment.prediction.confidence * 100).toFixed(0)}%</p><p className="mt-2 text-xs text-text-secondary">{assessment.prediction.contributing_factors.join(" · ")}</p></article>)}</div></section>}
-    <div className="flex gap-2 border-b border-border-color">{["New", "Reviewed", "Critical"].map((name) => <button key={name} onClick={() => setTab(name)} className={`border-b-2 px-4 py-3 text-sm font-semibold ${tab === name ? "border-deep-teal text-deep-teal" : "border-transparent text-text-secondary"}`}>{name}</button>)}</div>
-    <div className="grid gap-4">{visible.length ? visible.map((alert) => <article key={alert.id} className="surface rounded-2xl p-5 md:p-6"><div className="flex flex-col justify-between gap-4 md:flex-row md:items-start"><div className="flex gap-4"><span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${alert.level === "P1" ? "bg-warm-peach/25 text-[#a15f4e]" : "bg-[#fff1dc] text-[#9b6e25]"}`}>{alert.level === "P1" ? <ShieldAlert size={21} /> : <CircleAlert size={21} />}</span><div><div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-warm-peach/20 px-2 py-1 text-[11px] font-bold text-[#a15f4e]">{alert.level}</span><h2 className="font-semibold">{alert.title}</h2></div><p className="mt-2 text-sm text-text-secondary">{alert.caseName} - <span className="font-mono">{alert.docket}</span></p></div></div><div className="flex gap-2"><Link href={`/counsellor/cases/${alert.id === "A-204" ? "VIC_8291" : alert.id === "A-198" ? "VIC_4410" : "VIC_1173"}`} className="inline-flex items-center gap-2 rounded-lg bg-deep-teal px-3 py-2 text-xs font-bold text-white">Review case <ArrowRight size={14} /></Link><button onClick={() => setReviewed((current) => [...current, alert.id])} className="inline-flex items-center gap-2 rounded-lg border border-border-color px-3 py-2 text-xs font-bold text-text-secondary"><Check size={14} /> Mark reviewed</button></div></div><div className="mt-5 grid gap-3 rounded-xl bg-greenish-cream p-4 text-sm md:grid-cols-3"><div><p className="text-xs text-text-secondary">Contributing signals</p><p className="mt-1 font-medium">{alert.reason}</p></div><div><p className="text-xs text-text-secondary">Confidence</p><p className="mt-1 font-medium">{alert.confidence}</p></div><div><p className="text-xs text-text-secondary">Last human contact</p><p className="mt-1 font-medium">{alert.lastContact}</p></div></div></article>) : <div className="rounded-2xl border border-dashed border-border-color p-12 text-center text-sm text-text-secondary">No alerts in this view.</div>}</div>
-  </div>;
+  useEffect(() => {
+    async function loadAlertsData() {
+      setLoading(true);
+      try {
+        const [casesRes, alertsRes, assessmentsRes] = await Promise.all([
+          caseService.getMyCases().catch(() => []),
+          aiService.getAlerts().catch(() => []),
+          aiService.getSahayakAssessments().catch(() => []),
+        ]);
+        setCases(casesRes);
+        setAlerts(alertsRes as AlertItem[]);
+        setAssessments(assessmentsRes || []);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadAlertsData();
+  }, []);
+
+  const assignedTokens = useMemo(() => new Set(cases.map((c) => c.victimToken)), [cases]);
+  const assignedDockets = useMemo(() => new Set(cases.map((c) => c.docket)), [cases]);
+  const caseByToken = useMemo(() => {
+    const map = new Map<string, CaseRecord>();
+    cases.forEach((c) => {
+      map.set(c.victimToken, c);
+      map.set(c.docket, c);
+    });
+    return map;
+  }, [cases]);
+
+  // Scoped alerts strictly for assigned cases
+  const caseloadAlerts = useMemo(() => {
+    return alerts.filter(
+      (a) =>
+        (a.victimToken && assignedTokens.has(a.victimToken)) ||
+        (a.caseReference && (assignedTokens.has(a.caseReference) || assignedDockets.has(a.caseReference)))
+    );
+  }, [alerts, assignedTokens, assignedDockets]);
+
+  const visibleAlerts = useMemo(() => {
+    if (tab === "New") {
+      return caseloadAlerts.filter((a) => a.status === "NEW" || a.status === "ASSIGNED");
+    }
+    if (tab === "Reviewed") {
+      return caseloadAlerts.filter((a) => a.status === "ACKNOWLEDGED" || a.status === "RESOLVED");
+    }
+    // Critical tab: P1 or Crisis alerts
+    return caseloadAlerts.filter((a) => a.priority === "P1" || a.level === "P1" || a.severity === "urgent");
+  }, [caseloadAlerts, tab]);
+
+  const handleAcknowledge = async (alertId: string) => {
+    try {
+      await aiService.acknowledgeAlert(alertId);
+    } catch {
+      // non-fatal
+    }
+    setAlerts((prev) =>
+      prev.map((a) => (a.id === alertId ? { ...a, status: "ACKNOWLEDGED" } : a))
+    );
+  };
+
+  const handleResolve = async (alertId: string) => {
+    try {
+      await aiService.resolveAlert(alertId, "Marked resolved by counsellor");
+    } catch {
+      // non-fatal
+    }
+    setAlerts((prev) =>
+      prev.map((a) => (a.id === alertId ? { ...a, status: "RESOLVED", resolvedAt: new Date().toISOString() } : a))
+    );
+  };
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-8 pb-12">
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-deep-teal">Counsellor Workspace</p>
+        <h1 className="mt-1 font-editorial text-3xl font-bold tracking-tight text-text-primary md:text-4xl">
+          Caseload Alerts
+        </h1>
+        <p className="mt-1.5 text-sm text-text-secondary">
+          AI-assisted early-support signals and safety alerts for human review across your assigned cases.
+        </p>
+      </div>
+
+      {/* Sahayak Assessments Preview if available */}
+      {assessments.length > 0 && (
+        <section className="rounded-2xl border border-border-color bg-[color:var(--surface)] p-5 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-[0.18em] text-deep-teal mb-3">
+            Sahayak Escalation Risk Assessments
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {assessments.slice(-4).reverse().map((assessment) => (
+              <div key={assessment.id} className="rounded-xl bg-[color:var(--surface-subtle)] p-3.5 text-xs border border-border-color/60">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-text-primary">
+                    Case: {assessment.caseId ?? assessment.victimToken ?? "Assigned"}
+                  </span>
+                  <Badge tone={assessment.prediction.risk_level === "CRITICAL" ? "peach" : "amber"}>
+                    {assessment.prediction.risk_level} · {assessment.prediction.escalation_probability}% risk
+                  </Badge>
+                </div>
+                <p className="mt-1.5 text-text-secondary">
+                  {assessment.prediction.recommended_followup} · Confidence: {Math.round(assessment.prediction.confidence * 100)}%
+                </p>
+                {assessment.prediction.contributing_factors.length > 0 && (
+                  <p className="mt-1 text-[11px] text-text-secondary font-medium">
+                    Factors: {assessment.prediction.contributing_factors.slice(0, 2).join(", ")}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-border-color">
+        {(["New", "Reviewed", "Critical"] as const).map((name) => {
+          const count =
+            name === "New"
+              ? caseloadAlerts.filter((a) => a.status === "NEW" || a.status === "ASSIGNED").length
+              : name === "Reviewed"
+              ? caseloadAlerts.filter((a) => a.status === "ACKNOWLEDGED" || a.status === "RESOLVED").length
+              : caseloadAlerts.filter((a) => a.priority === "P1" || a.level === "P1").length;
+
+          return (
+            <button
+              key={name}
+              onClick={() => setTab(name)}
+              className={`flex items-center gap-1.5 border-b-2 px-4 py-3 text-sm font-semibold transition-colors ${
+                tab === name ? "border-deep-teal text-deep-teal" : "border-transparent text-text-secondary hover:text-text-primary"
+              }`}
+            >
+              <span>{name}</span>
+              <span className="rounded-full bg-[color:var(--surface-subtle)] px-2 py-0.5 text-xs">
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {loading && <p className="text-sm text-text-secondary">Loading caseload alerts…</p>}
+
+      {!loading && visibleAlerts.length === 0 && (
+        <div className="rounded-2xl border border-dashed border-border-color bg-[color:var(--surface-subtle)] p-12 text-center text-sm text-text-secondary">
+          No alerts found in the &ldquo;{tab}&rdquo; view.
+        </div>
+      )}
+
+      <div className="grid gap-4">
+        {visibleAlerts.map((alert) => {
+          const matchedCase = alert.victimToken
+            ? caseByToken.get(alert.victimToken)
+            : alert.caseReference
+            ? caseByToken.get(alert.caseReference)
+            : null;
+
+          const isP1 = alert.priority === "P1" || alert.level === "P1" || alert.severity === "urgent";
+
+          return (
+            <article
+              key={alert.id}
+              className={`rounded-2xl border p-5 shadow-sm transition-all ${
+                isP1 ? "border-warm-peach/40 bg-[color:var(--surface)]" : "border-border-color bg-[color:var(--surface)]"
+              }`}
+            >
+              <div className="flex flex-col justify-between gap-4 md:flex-row md:items-start">
+                <div className="flex items-start gap-3.5">
+                  <span
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                      isP1 ? "bg-warm-peach/20 text-warm-peach" : "bg-amber/20 text-[#b67926]"
+                    }`}
+                  >
+                    {isP1 ? <ShieldAlert size={20} /> : <CircleAlert size={20} />}
+                  </span>
+
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone={isP1 ? "peach" : "amber"}>
+                        {alert.priority || alert.level || "P3"}
+                      </Badge>
+                      <h2 className="font-semibold text-sm text-text-primary">{alert.reason}</h2>
+                      <Badge tone={alert.status === "RESOLVED" ? "sage" : alert.status === "ACKNOWLEDGED" ? "amber" : "peach"}>
+                        {alert.status}
+                      </Badge>
+                    </div>
+
+                    <p className="mt-1.5 text-xs text-text-secondary">
+                      {matchedCase ? (
+                        <>
+                          <span className="font-semibold text-text-primary">{matchedCase.survivorName}</span> ·{" "}
+                          <span className="font-mono">{matchedCase.docket}</span> · Stage: {matchedCase.currentStage}
+                        </>
+                      ) : (
+                        <span>Case: {alert.victimToken || alert.caseReference || "Assigned case"}</span>
+                      )}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  {matchedCase && (
+                    <Link
+                      href={`/counsellor/cases/${matchedCase.victimToken}`}
+                      className="inline-flex items-center gap-1.5 rounded-xl bg-deep-teal px-3.5 py-2 text-xs font-bold text-white shadow-sm hover:bg-[#0c625b] transition-all"
+                    >
+                      Review case <ArrowRight size={13} />
+                    </Link>
+                  )}
+
+                  {alert.status === "NEW" && (
+                    <Button size="sm" variant="secondary" onClick={() => handleAcknowledge(alert.id)}>
+                      <Check size={13} /> Acknowledge
+                    </Button>
+                  )}
+
+                  {alert.status !== "RESOLVED" && (
+                    <Button size="sm" variant="secondary" onClick={() => handleResolve(alert.id)}>
+                      <CheckCircle2 size={13} /> Mark resolved
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 rounded-xl bg-[color:var(--surface-subtle)] p-3 text-xs sm:grid-cols-3 border border-border-color/50">
+                <div>
+                  <p className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Triggered</p>
+                  <p className="mt-0.5 font-medium text-text-primary">{formatDate(alert.createdAt)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Source</p>
+                  <p className="mt-0.5 font-medium text-text-primary capitalize">{alert.source || "Wellbeing Monitoring"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-text-secondary uppercase tracking-wider">Status</p>
+                  <p className="mt-0.5 font-medium text-text-primary">
+                    {alert.status === "RESOLVED" ? `Resolved ${alert.resolvedAt ? formatDate(alert.resolvedAt) : ""}` : "Awaiting review"}
+                  </p>
+                </div>
+              </div>
+            </article>
+          );
+        })}
+      </div>
+    </div>
+  );
 }

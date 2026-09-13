@@ -264,6 +264,46 @@ export const aiService = {
     });
   },
 
+  async getAlerts() {
+    return apiRequest<Array<{
+      id: string;
+      priority?: string;
+      level?: string;
+      severity?: string;
+      status: string;
+      reason: string;
+      source?: string;
+      victimToken?: string;
+      caseReference?: string;
+      confidence?: number;
+      createdAt: string;
+      updatedAt?: string;
+      acknowledgedAt?: string;
+      resolvedAt?: string;
+    }>>("/api/v1/alerts");
+  },
+
+  async acknowledgeAlert(alertId: string, note?: string) {
+    return apiRequest(`/api/v1/alerts/${encodeURIComponent(alertId)}/acknowledge`, {
+      method: "POST",
+      body: JSON.stringify({ note }),
+    });
+  },
+
+  async resolveAlert(alertId: string, note?: string) {
+    return apiRequest(`/api/v1/alerts/${encodeURIComponent(alertId)}/resolve`, {
+      method: "POST",
+      body: JSON.stringify({ note }),
+    });
+  },
+
+  async assignAlert(alertId: string, assigneeId: string, note?: string) {
+    return apiRequest(`/api/v1/alerts/${encodeURIComponent(alertId)}/assign`, {
+      method: "POST",
+      body: JSON.stringify({ assigneeId, note }),
+    });
+  },
+
   async getAdminSummary(scope: "district" | "state" | "national") {
     return apiRequest(`/api/v1/admin/${scope}`);
   },
